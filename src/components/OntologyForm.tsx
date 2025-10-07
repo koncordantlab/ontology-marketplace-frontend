@@ -99,19 +99,25 @@ export const OntologyForm: React.FC<OntologyFormProps> = ({
           return;
         }
 
-        result = await ontologyService.updateOntology(
-          ontologyId,
-          {
-            name: title,
-            description: description,
-            properties: {
-              tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
-              source_url: ontologyUrl || '',
-              image_url: thumbnailUrl || '',
-              is_public: isPublic
-            }
+        const updatePayload = {
+          name: title,
+          description: description,
+          properties: {
+            tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+            source_url: ontologyUrl || '',
+            image_url: thumbnailUrl || '',
+            is_public: isPublic
           }
-        );
+        };
+
+        console.log('Update payload with thumbnailUrl:', thumbnailUrl);
+        console.log('Full update payload:', updatePayload);
+
+        const updateResult = await ontologyService.updateOntology(ontologyId, updatePayload);
+        // Map the response to match expected structure
+        result = updateResult.success
+          ? { ontology: updateResult.data }
+          : { error: updateResult.error || 'Failed to update ontology' };
       }
 
       if (result.error) {

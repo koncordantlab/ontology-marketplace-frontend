@@ -33,14 +33,8 @@ export interface AddOntologyResponse {
 }
 
 class OntologyService {
-  // Using the new Firebase Functions v2 URLs from deployment
-  private readonly functionUrls = {
-    search_ontologies: 'https://search-ontologies-yzzefee2aq-uc.a.run.app',
-    add_ontology: 'https://add-ontology-yzzefee2aq-uc.a.run.app', 
-    update_ontology: 'https://update-ontology-yzzefee2aq-uc.a.run.app',
-    delete_ontology: 'https://delete-ontology-yzzefee2aq-uc.a.run.app'
-  };
-  private readonly baseUrl = 'https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net';
+  // Using local API server or Zuplo API Gateway
+  private readonly baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
   private fallbackUsed = false;
   private lastFallbackReason = '';
 
@@ -89,10 +83,10 @@ class OntologyService {
   async searchOntologies(): Promise<OntologyResponse> {
     try {
       const token = await this.getAuthToken();
-      
-      const searchUrl = 'https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net/search_ontologies';
 
-      
+      const searchUrl = `${this.baseUrl}/search_ontologies`;
+
+
       const response = await fetch(searchUrl, {
         method: 'GET',
         headers: {
@@ -110,23 +104,51 @@ class OntologyService {
       }
 
       const data = await response.json();
-      
+      console.log('API Response data:', data);
+      console.log('data.results:', data.results);
+      console.log('data.ontologies:', data.ontologies);
+      console.log('data.data:', data.data);
+
       // Normalize the data structure to ensure consistency
-      const normalizedOntologies = (data.ontologies || data || []).map((ontology: any) => {
+      // Handle different response formats from backend
+      let ontologiesArray = [];
+      if (Array.isArray(data.results)) {
+        ontologiesArray = data.results;
+      } else if (Array.isArray(data.ontologies)) {
+        ontologiesArray = data.ontologies;
+      } else if (data.data && Array.isArray(data.data.ontologies)) {
+        ontologiesArray = data.data.ontologies;
+      } else if (data.data && Array.isArray(data.data.results)) {
+        ontologiesArray = data.data.results;
+      } else if (data.data && Array.isArray(data.data)) {
+        ontologiesArray = data.data;
+      } else if (Array.isArray(data)) {
+        ontologiesArray = data;
+      } else {
+        console.warn('Unexpected response format:', data);
+        ontologiesArray = [];
+      }
+
+      // Track seen IDs to handle duplicates
+      const seenIds = new Set<string>();
+
+      const normalizedOntologies = ontologiesArray.map((ontology: any, index: number) => {
+        // console.log('Raw ontology from backend:', ontology);
+
         // Handle date conversion - Firestore timestamps come as objects with _seconds
         const parseDate = (dateValue: any): Date => {
           if (!dateValue) return new Date();
-          
+
           // If it's a Firestore timestamp object
           if (dateValue && typeof dateValue === 'object' && dateValue._seconds) {
             return new Date(dateValue._seconds * 1000);
           }
-          
+
           // If it's already a Date object
           if (dateValue instanceof Date) {
             return dateValue;
           }
-          
+
           // If it's a string or number, try to parse it
           try {
             return new Date(dateValue);
@@ -136,8 +158,18 @@ class OntologyService {
           }
         };
 
+        // Generate unique ID - prioritize uuid, then id, then generate unique fallback
+        let uniqueId = ontology.uuid || ontology.id || ontology._id || ontology.ontology_id || `ontology-${Date.now()}-${index}`;
+
+        // If this ID has already been seen, append index to make it unique
+        if (seenIds.has(uniqueId)) {
+          console.warn(`Duplicate UUID detected: ${uniqueId}. Appending index to ensure uniqueness.`);
+          uniqueId = `${uniqueId}-${index}`;
+        }
+        seenIds.add(uniqueId);
+
         return {
-          id: ontology.id,
+          id: uniqueId,
           name: ontology.title || ontology.name || 'Untitled Ontology', // Handle both title and name fields
           description: ontology.description || '',
           properties: {
@@ -164,7 +196,7 @@ class OntologyService {
       };
     } catch (error) {
       console.error('Error searching ontologies:', error);
-      
+
       // Enhanced fallback strategy with multiple levels
       return this.handleSearchFallback(error);
     }
@@ -175,10 +207,10 @@ class OntologyService {
    */
   private handleSearchFallback(error: any): OntologyResponse {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
+
     // Strategy 1: Network/CORS errors - return development mock data
-    if (errorMessage.includes('NetworkError') || 
-        errorMessage.includes('CORS') || 
+    if (errorMessage.includes('NetworkError') ||
+        errorMessage.includes('CORS') ||
         errorMessage.includes('Failed to fetch')) {
       return {
         success: true,
@@ -403,20 +435,19 @@ class OntologyService {
   async addOntology(ontology: Omit<Ontology, 'id' | 'createdAt' | 'updatedAt' | 'ownerId'>): Promise<AddOntologyResponse> {
     try {
       const token = await this.getAuthToken();
-      
-      const payload = {
+
+      // Backend expects an array of ontologies with flattened structure
+      const payload = [{
         name: ontology.name,
         description: ontology.description,
-        properties: {
-          source_url: ontology.properties.source_url || '',
-          image_url: ontology.properties.image_url || '',
-          is_public: ontology.properties.is_public
-        }
-      };
+        source_url: ontology.properties.source_url || '',
+        image_url: ontology.properties.image_url || '',
+        is_public: ontology.properties.is_public
+      }];
 
+      console.log('Sending add ontology payload:', payload);
 
-
-      const addUrl = 'https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net/add_ontology';
+      const addUrl = `${this.baseUrl}/add_ontologies`;
       const response = await fetch(addUrl, {
         method: 'POST',
         headers: {
@@ -429,14 +460,48 @@ class OntologyService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Add ontology error response:', errorData);
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.error || errorData.detail?.[0]?.msg || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      
+      console.log('Add ontology response:', data);
+
+      // Check if ontology was skipped due to duplicate
+      if (data.message && data.message.includes('Skipped')) {
+        // Check if created_ontologies is empty
+        if (data.data?.created_ontologies && data.data.created_ontologies.length === 0) {
+          return {
+            success: false,
+            error: 'An ontology with this source URL already exists. Please provide a different source URL.'
+          };
+        }
+      }
+
+      // Backend returns an array of created ontologies, get the first one
+      let createdOntology = null;
+
+      // Try to get the created ontology from various possible response structures
+      if (data.data?.created_ontologies && Array.isArray(data.data.created_ontologies) && data.data.created_ontologies.length > 0) {
+        createdOntology = data.data.created_ontologies[0];
+      } else if (Array.isArray(data.results)) {
+        createdOntology = data.results[0];
+      } else if (Array.isArray(data)) {
+        createdOntology = data[0];
+      } else if (data.ontology) {
+        createdOntology = data.ontology;
+      }
+
+      // If no ontology was created, return error
+      if (!createdOntology) {
+        return {
+          success: false,
+          error: 'Failed to create ontology. It may already exist with the same source URL.'
+        };
+      }
+
       return {
         success: true,
-        data: data.ontology || data
+        data: createdOntology
       };
     } catch (error) {
       console.error('Error adding ontology:', error);
@@ -509,7 +574,7 @@ class OntologyService {
     };
 
     const result = await this.addOntology(ontologyData);
-    
+
     if (!result.success) {
       return { error: result.error };
     }
@@ -564,27 +629,23 @@ class OntologyService {
   async updateOntology(ontologyId: string, updates: Partial<Ontology>): Promise<AddOntologyResponse> {
     try {
       const token = await this.getAuthToken();
-      
-      // Prepare the payload in the format expected by the Firebase function
+
+      // Prepare the payload with flattened structure like add_ontologies
       const payload = {
-        id: ontologyId,
         name: updates.name || '',
         description: updates.description || '',
-        properties: {
-          source_url: updates.properties?.source_url || '',
-          image_url: updates.properties?.image_url || '',
-          is_public: updates.properties?.is_public !== undefined ? updates.properties.is_public : false
-        },
-        tags: updates.properties?.tags || []
+        source_url: updates.properties?.source_url || '',
+        image_url: updates.properties?.image_url || '',
+        is_public: updates.properties?.is_public !== undefined ? updates.properties.is_public : false
       };
 
       console.log('Sending update payload:', payload);
-      console.log('Request URL:', `${this.baseUrl}/update_ontology`);
+      console.log('Request URL:', `${this.baseUrl}/update_ontology/${ontologyId}`);
       console.log('Auth token available:', !!token);
-      
-      // Use the v1 update_ontology function (like add_ontology)
-      const response = await fetch(`${this.baseUrl}/update_ontology`, {
-        method: 'POST',
+
+      // Use PUT method for update
+      const response = await fetch(`${this.baseUrl}/update_ontology/${ontologyId}`, {
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -595,15 +656,18 @@ class OntologyService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         console.error('Update ontology error response:', errorData);
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.error || errorData.detail?.[0]?.msg || errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
       console.log('Update response:', data);
-      
+
+      // Handle response structure similar to add ontology
+      const updatedOntology = data.data?.ontology || data.ontology || data.data || data;
+
       return {
         success: true,
-        data: data.ontology || data
+        data: updatedOntology
       };
     } catch (error) {
       console.error('Error updating ontology:', error);
@@ -616,17 +680,27 @@ class OntologyService {
   }
 
   /**
-   * Delete an ontology
+   * Soft delete an ontology (marks as deleted but keeps in database)
    */
-  async deleteOntology(ontologyId: string): Promise<{ success: boolean; error?: string }> {
+  async deleteOntology(ontologyId: string, permanent: boolean = false): Promise<{ success: boolean; error?: string }> {
     try {
       const token = await this.getAuthToken();
-      
-      const payload = { id: ontologyId };
-      
-      const deleteUrl = 'https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net/delete_ontology';
+
+      console.log(`${permanent ? 'Permanently deleting' : 'Soft deleting'} ontology:`, ontologyId);
+
+      // Use DELETE method with permanent option (matching backend expectation)
+      const deleteUrl = `${this.baseUrl}/delete_ontologies`;
+      console.log('Delete URL:', deleteUrl);
+
+      // Send array of IDs with permanent flag (backend expects 'permanent' not 'soft_delete')
+      const payload = {
+        ontology_ids: [ontologyId],
+        permanent: permanent  // true for permanent delete, false for soft delete
+      };
+      console.log('Delete payload:', JSON.stringify(payload));
+
       const response = await fetch(deleteUrl, {
-        method: 'POST',
+        method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -647,9 +721,139 @@ class OntologyService {
     } catch (error) {
       console.error('Error deleting ontology:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { 
-        success: false, 
-        error: `Failed to delete ontology: ${errorMessage}` 
+      return {
+        success: false,
+        error: `Failed to delete ontology: ${errorMessage}`
+      };
+    }
+  }
+
+  /**
+   * Get deleted ontologies (soft deleted items)
+   */
+  async getDeletedOntologies(): Promise<OntologyResponse> {
+    try {
+      const token = await this.getAuthToken();
+
+      const url = `${this.baseUrl}/deleted_ontologies`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API Error Response:', errorData);
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Deleted ontologies response:', data);
+
+      // Use same normalization logic as regular ontologies
+      let ontologiesArray = [];
+      if (Array.isArray(data.results)) {
+        ontologiesArray = data.results;
+      } else if (Array.isArray(data.ontologies)) {
+        ontologiesArray = data.ontologies;
+      } else if (data.data && Array.isArray(data.data.ontologies)) {
+        ontologiesArray = data.data.ontologies;
+      }
+
+      const seenIds = new Set<string>();
+      const normalizedOntologies = ontologiesArray.map((ontology: any, index: number) => {
+        const parseDate = (dateValue: any): Date => {
+          if (!dateValue) return new Date();
+          if (dateValue && typeof dateValue === 'object' && dateValue._seconds) {
+            return new Date(dateValue._seconds * 1000);
+          }
+          if (dateValue instanceof Date) {
+            return dateValue;
+          }
+          try {
+            return new Date(dateValue);
+          } catch (e) {
+            return new Date();
+          }
+        };
+
+        let uniqueId = ontology.uuid || ontology.id || ontology._id || `ontology-${Date.now()}-${index}`;
+        if (seenIds.has(uniqueId)) {
+          uniqueId = `${uniqueId}-${index}`;
+        }
+        seenIds.add(uniqueId);
+
+        return {
+          id: uniqueId,
+          name: ontology.title || ontology.name || 'Untitled Ontology',
+          description: ontology.description || '',
+          properties: {
+            source_url: ontology.file_url || ontology.source_url || '',
+            image_url: ontology.image_url || '',
+            is_public: ontology.is_public ?? false
+          },
+          ownerId: ontology.ownerId || ontology.uid || '',
+          createdAt: parseDate(ontology.createdAt || ontology.created_time),
+          updatedAt: parseDate(ontology.updatedAt),
+          node_count: ontology.node_count,
+          relationship_count: ontology.relationship_count,
+          file_url: ontology.file_url,
+          uid: ontology.uid
+        };
+      });
+
+      return {
+        success: true,
+        data: normalizedOntologies
+      };
+    } catch (error) {
+      console.error('Error fetching deleted ontologies:', error);
+      return {
+        success: false,
+        error: 'Failed to fetch deleted ontologies',
+        data: []
+      };
+    }
+  }
+
+  /**
+   * Restore a soft-deleted ontology
+   */
+  async restoreOntology(ontologyId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const token = await this.getAuthToken();
+
+      console.log('Restoring ontology:', ontologyId);
+
+      const restoreUrl = `${this.baseUrl}/restore_ontology/${ontologyId}`;
+      const response = await fetch(restoreUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),  // Empty body since ID is in URL
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Restore ontology error response:', errorData);
+        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Restore response:', data);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error restoring ontology:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        success: false,
+        error: `Failed to restore ontology: ${errorMessage}`
       };
     }
   }

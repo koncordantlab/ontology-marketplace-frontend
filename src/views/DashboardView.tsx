@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Settings, Eye, EyeOff, FileText, Calendar, Star, Tag, Trash } from 'lucide-react';
+import { Search, Plus, Settings, Eye, EyeOff, FileText, Calendar, Star, Tag } from 'lucide-react';
 import { ontologyService, Ontology } from '../services/ontologyService';
 import { authService } from '../services/authService';
 
@@ -22,6 +22,7 @@ interface Tag {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenSettings }) => {
   const [ontologies, setOntologies] = useState<Ontology[]>([]);
+  const [deletedOntologies, setDeletedOntologies] = useState<Ontology[]>([]);
   const [filteredOntologies, setFilteredOntologies] = useState<Ontology[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -39,11 +40,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   // Load ontologies
   useEffect(() => {
     loadOntologies();
+    loadDeletedOntologies();
   }, []);
 
   // Filter ontologies based on search, category, and tags
   useEffect(() => {
-    let filtered = ontologies;
+    // Check if viewing deleted items
+    let filtered = selectedCategory === 'deleted' ? deletedOntologies : ontologies;
 
     // Apply search filter
     if (searchQuery) {
@@ -53,8 +56,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
       );
     }
 
-    // Apply category filter
-    if (selectedCategory !== 'all') {
+    // Apply category filter (skip for 'deleted' as it's already filtered)
+    if (selectedCategory !== 'all' && selectedCategory !== 'deleted') {
       const category = categories.find(cat => cat.name.toLowerCase().replace(/\s+/g, '-') === selectedCategory);
       if (category) {
         filtered = filtered.filter(category.filter);
@@ -70,12 +73,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     }
 
     setFilteredOntologies(filtered);
-  }, [ontologies, searchQuery, selectedCategory, selectedTags]);
+  }, [ontologies, deletedOntologies, searchQuery, selectedCategory, selectedTags]);
 
   const loadOntologies = async () => {
     setIsLoading(true);
     setError('');
-    
+
     try {
       const result = await ontologyService.searchOntologies();
       if (result.success && result.data) {
@@ -91,24 +94,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     }
   };
 
-  // Handle delete ontology
-  const handleDeleteOntology = async (ontologyId: string, ontologyName: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${ontologyName}"? This action cannot be undone.`)) {
-      return;
+  const loadDeletedOntologies = async () => {
+    try {
+      const result = await ontologyService.getDeletedOntologies();
+      if (result.success && result.data) {
+        setDeletedOntologies(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading deleted ontologies:', error);
     }
+  };
+
+  // Handle delete ontology (with option for soft or permanent delete)
+  const handleDeleteOntology = async (ontologyId: string, ontologyName: string, permanent: boolean = false) => {
+    console.log(`Attempting to delete ontology: ${ontologyName} (ID: ${ontologyId}), permanent: ${permanent}`);
 
     try {
-      const result = await ontologyService.deleteOntology(ontologyId);
+      const result = await ontologyService.deleteOntology(ontologyId, permanent);
+      console.log('Delete result:', result);
+
       if (result.success) {
-        // Remove from local state
-        setOntologies(prev => prev.filter(o => o.id !== ontologyId));
-        console.log('Ontology deleted successfully');
+        if (permanent) {
+          // Remove from deleted state
+          setDeletedOntologies(prev => prev.filter(o => o.id !== ontologyId));
+        } else {
+          // Remove from normal state and reload deleted
+          setOntologies(prev => prev.filter(o => o.id !== ontologyId));
+          loadDeletedOntologies();
+        }
+        console.log(`Ontology ${permanent ? 'permanently deleted' : 'moved to trash'} successfully`);
       } else {
+        console.error('Delete failed:', result.error);
         setError(result.error || 'Failed to delete ontology');
       }
     } catch (error) {
       console.error('Error deleting ontology:', error);
       setError('Failed to delete ontology');
+    }
+  };
+
+  // Handle restore ontology from trash
+  const handleRestoreOntology = async (ontologyId: string, ontologyName: string) => {
+
+    try {
+      const result = await ontologyService.restoreOntology(ontologyId);
+      if (result.success) {
+        // Remove from deleted state and reload both lists
+        setDeletedOntologies(prev => prev.filter(o => o.id !== ontologyId));
+        loadOntologies();
+        console.log('Ontology restored successfully');
+      } else {
+        setError(result.error || 'Failed to restore ontology');
+      }
+    } catch (error) {
+      console.error('Error restoring ontology:', error);
+      setError('Failed to restore ontology');
     }
   };
 
@@ -165,6 +205,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
       name: 'Private',
       count: ontologies.filter(onto => !onto.properties?.is_public).length,
       filter: (onto) => !onto.properties?.is_public
+    },
+    {
+      name: 'Deleted',
+      count: deletedOntologies.length,
+      filter: () => false  // This will be handled separately
     }
   ];
 
@@ -372,8 +417,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                           alt={`${ontology.name} thumbnail`}
                           className="w-full h-full object-cover rounded-t-lg"
                           onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling!.style.display = 'flex';
+                            const img = e.currentTarget as HTMLImageElement;
+                            img.style.display = 'none';
+                            const nextElement = img.nextElementSibling as HTMLElement;
+                            if (nextElement) {
+                              nextElement.style.display = 'flex';
+                            }
                           }}
                         />
                       ) : null}
@@ -408,8 +457,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                       <div className="flex items-center justify-between mt-4">
                         <div className="flex items-center space-x-2">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            ontology.properties?.is_public 
-                              ? 'bg-green-100 text-green-800' 
+                            ontology.properties?.is_public
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}>
                             {ontology.properties?.is_public ? (
@@ -428,34 +477,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                             {formatDate(ontology.updatedAt || ontology.createdAt)}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => {
-                              // Navigate to view/edit
-                              console.log('View/Edit ontology:', ontology.id);
-                              onNavigate('ontology-details', ontology.id);
-                            }}
-                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                          >
-                            View
-                          </button>
-                          <button
-                            onClick={() => {
-                              // Navigate to edit
-                              console.log('Edit ontology:', ontology.id);
-                              onNavigate('edit-ontology', ontology.id);
-                            }}
-                            className="text-sm text-green-600 hover:text-green-800 font-medium"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteOntology(ontology.id!, ontology.name)}
-                            className="text-sm text-red-600 hover:text-red-800 font-medium flex items-center space-x-1"
-                          >
-                            <Trash size={14} />
-                            <span>Delete</span>
-                          </button>
+                        <div className="flex items-center space-x-2 ml-4">
+                          {selectedCategory === 'deleted' ? (
+                            // Show restore and permanent delete for deleted items
+                            <>
+                              <button
+                                onClick={() => handleRestoreOntology(ontology.id!, ontology.name)}
+                                className="text-sm text-green-600 hover:text-green-800 font-medium"
+                                title="Restore from trash"
+                              >
+                                Restore
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOntology(ontology.id!, ontology.name, true)}
+                                className="text-sm text-red-600 hover:text-red-800 font-medium"
+                                title="Permanently delete"
+                              >
+                                Delete Forever
+                              </button>
+                            </>
+                          ) : (
+                            // Show regular actions for non-deleted items
+                            <>
+                              <button
+                                onClick={() => {
+                                  // Navigate to view/edit
+                                  console.log('View/Edit ontology:', ontology.id);
+                                  onNavigate('ontology-details', ontology.id);
+                                }}
+                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                              >
+                                View
+                              </button>
+                              <button
+                                onClick={() => {
+                                  // Navigate to edit
+                                  console.log('Edit ontology:', ontology.id);
+                                  onNavigate('edit-ontology', ontology.id);
+                                }}
+                                className="text-sm text-green-600 hover:text-green-800 font-medium"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOntology(ontology.id!, ontology.name, false)}
+                                className="text-sm text-red-600 hover:text-red-800 font-medium"
+                                title="Move to trash"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
