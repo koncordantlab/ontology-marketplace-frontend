@@ -1,22 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { Toggle } from '../components/Toggle';
 import { OntologySelector } from '../components/OntologySelector';
+import { Neo4jConnectionModal, Neo4jCredentials } from '../components/Neo4jConnectionModal';
+import { ConversionStatus, ConversionState } from '../components/ConversionStatus';
 import { ontologyService, Ontology } from '../services/ontologyService';
-import { FirebaseFunctionCaller } from '../config/firebaseFunctions';
 
 interface UseOntologyViewProps {
   onNavigate: (view: string, ontologyId?: string) => void;
 }
 
 export const UseOntologyView: React.FC<UseOntologyViewProps> = ({ onNavigate }) => {
-  const [showMerged, setShowMerged] = useState(true);
   const [selectedOntologyId, setSelectedOntologyId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ontologies, setOntologies] = useState<Ontology[]>([]);
   const [isLoadingOntologies, setIsLoadingOntologies] = useState(false);
   const [previewData, setPreviewData] = useState<Ontology[]>([]);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [showNeo4jModal, setShowNeo4jModal] = useState(false);
+  const [isConvertingToNeo4j, setIsConvertingToNeo4j] = useState(false);
+  const [conversionState, setConversionState] = useState<ConversionState>('idle');
+  const [conversionMessage, setConversionMessage] = useState<string>('');
+  const [conversionStats, setConversionStats] = useState<any>(null);
+  const [lastNeo4jUri, setLastNeo4jUri] = useState<string>('');
 
   // Get the selected ontology object
   const selectedOntology = ontologies.find(ont => ont.id === selectedOntologyId);
@@ -88,28 +92,75 @@ export const UseOntologyView: React.FC<UseOntologyViewProps> = ({ onNavigate }) 
       alert('Please select an ontology first');
       return;
     }
-    
-    setIsLoading(true);
+
+    // Open Neo4j connection modal
+    setShowNeo4jModal(true);
+  };
+
+  const handleNeo4jConvert = async (credentials: Neo4jCredentials) => {
+    if (!selectedOntologyId || !selectedOntology) {
+      setConversionState('error');
+      setConversionMessage('Please select an ontology first');
+      setShowNeo4jModal(false);
+      return;
+    }
+
+    // Close modal and show conversion status in main UI
+    setShowNeo4jModal(false);
+    setIsConvertingToNeo4j(true);
+    setConversionState('converting');
+    setConversionMessage('Initializing conversion process...');
+    setConversionStats(null);
     setError(null);
-    
+    setLastNeo4jUri(credentials.uri);
+
     try {
-      // Call Firebase function to upload ontology to database
-      const result = await FirebaseFunctionCaller.uploadToDatabase(
-        selectedOntologyId,
-        'neo4j', // or 'postgres', 'mysql', etc.
-        showMerged ? 'merge' : 'replace'
-      );
-      
+      // Get the source URL from the selected ontology
+      const sourceUrl = selectedOntology.properties?.source_url;
 
-      
-      // Show success message
-      alert('Ontology uploaded successfully!');
-      
+      if (!sourceUrl) {
+        throw new Error('Selected ontology does not have a source URL');
+      }
+
+      // Update message based on clear_existing flag
+      console.log('Neo4j conversion starting with credentials:', {
+        uri: credentials.uri,
+        username: credentials.username,
+        clearExisting: credentials.clearExisting,
+        rootLabel: credentials.rootLabel
+      });
+
+      if (credentials.clearExisting) {
+        setConversionMessage('Clearing existing database before import...');
+      } else {
+        setConversionMessage('Connecting to Neo4j and downloading ontology...');
+      }
+
+      const result = await ontologyService.convertToNeo4j({
+        ontology_id: selectedOntologyId,
+        ontology_name: selectedOntology.name,
+        source_url: sourceUrl,
+        neo4j_uri: credentials.uri,
+        neo4j_user: credentials.username,
+        neo4j_password: credentials.password,
+        root_label: credentials.rootLabel,
+        clear_existing: credentials.clearExisting
+      });
+
+      if (result.success) {
+        setConversionState('success');
+        setConversionMessage(result.message || 'Ontology successfully converted to Neo4j!');
+        setConversionStats(result.stats);
+      } else {
+        throw new Error(result.error || 'Conversion failed');
+      }
     } catch (error) {
-
-      setError(error instanceof Error ? error.message : 'Upload failed');
+      console.error('Neo4j conversion error:', error);
+      setConversionState('error');
+      setConversionMessage(error instanceof Error ? error.message : 'Conversion failed');
+      setError(error instanceof Error ? error.message : 'Conversion failed');
     } finally {
-      setIsLoading(false);
+      setIsConvertingToNeo4j(false);
     }
   };
 
@@ -321,12 +372,7 @@ export const UseOntologyView: React.FC<UseOntologyViewProps> = ({ onNavigate }) 
               </div>
             )}
             
-            <div className="flex items-center justify-between mt-6">
-              <Toggle
-                checked={showMerged}
-                onChange={setShowMerged}
-                label="Show Merged"
-              />
+            <div className="flex justify-end mt-6">
               <button
                 onClick={handleUpload}
                 disabled={!selectedOntologyId}
@@ -336,20 +382,37 @@ export const UseOntologyView: React.FC<UseOntologyViewProps> = ({ onNavigate }) 
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                UPLOAD
+                CONVERT TO NEO4J
               </button>
             </div>
             
             {!selectedOntologyId && (
               <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                 <p className="text-sm text-yellow-800">
-                  Select an ontology to upload
+                  Select an ontology to convert to Neo4j
                 </p>
               </div>
             )}
+
+            {/* Conversion Status Display */}
+            <ConversionStatus
+              state={conversionState}
+              message={conversionMessage}
+              stats={conversionStats}
+              neo4jUri={lastNeo4jUri}
+              onClose={() => setConversionState('idle')}
+            />
           </div>
         </div>
       </div>
+
+      {/* Neo4j Connection Modal */}
+      <Neo4jConnectionModal
+        isOpen={showNeo4jModal}
+        onClose={() => setShowNeo4jModal(false)}
+        onConnect={handleNeo4jConvert}
+        isLoading={isConvertingToNeo4j}
+      />
     </div>
   );
 };

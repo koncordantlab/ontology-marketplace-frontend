@@ -857,6 +857,127 @@ class OntologyService {
       };
     }
   }
+
+  /**
+   * Test connection to Neo4j database
+   */
+  public async testNeo4jConnection(params: {
+    neo4j_uri: string;
+    neo4j_user: string;
+    neo4j_password: string;
+  }): Promise<{
+    success: boolean;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = await this.getAuthToken();
+
+      const response = await fetch(`${this.baseUrl}/test_neo4j_connection`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          neo4j_uri: params.neo4j_uri,
+          neo4j_user: params.neo4j_user,
+          neo4j_password: params.neo4j_password
+        })
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        return {
+          success: true,
+          message: result.message
+        };
+      } else {
+        return {
+          success: false,
+          error: result.message || 'Connection test failed',
+          message: result.message
+        };
+      }
+    } catch (error) {
+      console.error('Error testing Neo4j connection:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Connection test failed'
+      };
+    }
+  }
+
+  /**
+   * Convert ontology to Neo4j format and upload to user's local database
+   */
+  public async convertToNeo4j(params: {
+    ontology_id: string;
+    ontology_name: string;
+    source_url: string;
+    neo4j_uri: string;
+    neo4j_user: string;
+    neo4j_password: string;
+    root_label?: string;
+    clear_existing?: boolean;
+  }): Promise<{
+    success: boolean;
+    message?: string;
+    stats?: any;
+    error?: string;
+  }> {
+    try {
+      const token = await this.getAuthToken();
+
+      const requestBody = {
+        ontology_id: params.ontology_id,
+        ontology_name: params.ontology_name,
+        source_url: params.source_url,
+        neo4j_uri: params.neo4j_uri,
+        neo4j_user: params.neo4j_user,
+        neo4j_password: params.neo4j_password,
+        root_label: params.root_label || null,
+        clear_existing: params.clear_existing === true  // Only true if explicitly true
+      };
+
+      console.log('Sending convertToNeo4j request with body:', {
+        ...requestBody,
+        neo4j_password: '[REDACTED]'
+      });
+
+      const response = await fetch(`${this.baseUrl}/convert_to_neo4j`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        return {
+          success: true,
+          message: result.message,
+          stats: result.data?.stats
+        };
+      } else {
+        return {
+          success: false,
+          error: result.message || 'Failed to convert ontology',
+          message: result.message
+        };
+      }
+    } catch (error) {
+      console.error('Error converting to Neo4j:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to convert ontology'
+      };
+    }
+  }
 }
 
 export const ontologyService = new OntologyService();
