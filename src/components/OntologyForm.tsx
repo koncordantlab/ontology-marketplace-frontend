@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, ExternalLink, Loader, CheckCircle, AlertCircle, Save, Upload } from 'lucide-react';
 import { ThumbnailUpload } from './ThumbnailUpload';
-import { FirebaseFunctionCaller } from '../config/firebaseFunctions';
+import { BackendApiClient } from '../config/backendApi';
 import { ontologyService, Ontology } from '../services/ontologyService';
 
 interface OntologyFormProps {
@@ -56,7 +56,7 @@ export const OntologyForm: React.FC<OntologyFormProps> = ({
     setProcessError('');
 
     try {
-      const processResult = await FirebaseFunctionCaller.processOntologyUrl(ontologyUrl, false);
+      const processResult = await BackendApiClient.uploadFromUrl(ontologyUrl);
       
       // Update form with processed data if available
       if (processResult.name) setTitle(processResult.name);

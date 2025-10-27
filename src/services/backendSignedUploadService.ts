@@ -23,21 +23,9 @@ export class BackendSignedUploadService {
     try {
       const token = await authService.getAuthToken();
       
-      const response = await fetch('https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net/generate_cloudinary_signature', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ params })
-      });
-
-      if (!response.ok) {
-        throw new Error(`Backend signature generation failed: ${response.status}`);
-      }
-
-      const result = await response.json();
-      return result;
+      // TODO: Update this to use the backend API when Cloudinary endpoint is available
+      // For now, this is a placeholder that would need to be implemented on the backend
+      throw new Error('Cloudinary signature generation needs to be implemented via backend API');
     } catch (error) {
       console.error('Error getting signature from backend:', error);
       throw error;

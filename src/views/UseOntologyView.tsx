@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Toggle } from '../components/Toggle';
 import { OntologySelector } from '../components/OntologySelector';
 import { ontologyService, Ontology } from '../services/ontologyService';
-import { FirebaseFunctionCaller } from '../config/firebaseFunctions';
+import { BackendApiClient } from '../config/backendApi';
 
 interface UseOntologyViewProps {
   onNavigate: (view: string, ontologyId?: string) => void;
@@ -93,11 +93,10 @@ export const UseOntologyView: React.FC<UseOntologyViewProps> = ({ onNavigate }) 
     setError(null);
     
     try {
-      // Call Firebase function to upload ontology to database
-      const result = await FirebaseFunctionCaller.uploadToDatabase(
+      // Call backend API to upload ontology to database
+      const result = await BackendApiClient.uploadToNeo4j(
         selectedOntologyId,
-        'neo4j', // or 'postgres', 'mysql', etc.
-        showMerged ? 'merge' : 'replace'
+        { mergeStrategy: showMerged ? 'merge' : 'replace' }
       );
       
 

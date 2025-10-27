@@ -12,8 +12,7 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../config/firebase';
+import { auth } from '../config/firebase';
 
 export interface User {
   id: string;
@@ -56,31 +55,14 @@ class AuthService {
 
   // Convert Firebase User to our User interface
   private async createUserFromFirebaseUser(firebaseUser: FirebaseUser): Promise<User> {
-    try {
-      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      const userData = userDoc.data();
-
-      return {
-        id: firebaseUser.uid,
-        name: userData?.name || firebaseUser.displayName || 'User',
-        email: firebaseUser.email || '',
-        photoURL: firebaseUser.photoURL || undefined,
-        createdAt: userData?.createdAt?.toDate(),
-        lastLoginAt: new Date()
-      };
-    } catch (error) {
-      console.error('Error creating user from Firebase user:', error);
-      console.log('Using fallback user data');
-      
-      // Fallback to basic user data if Firestore fails
-      return {
-        id: firebaseUser.uid,
-        name: firebaseUser.displayName || 'User',
-        email: firebaseUser.email || '',
-        photoURL: firebaseUser.photoURL || undefined,
-        lastLoginAt: new Date()
-      };
-    }
+    return {
+      id: firebaseUser.uid,
+      name: firebaseUser.displayName || 'User',
+      email: firebaseUser.email || '',
+      photoURL: firebaseUser.photoURL || undefined,
+      createdAt: undefined,
+      lastLoginAt: new Date()
+    };
   }
 
   // Register new user with email and password
@@ -91,16 +73,6 @@ class AuthService {
 
       // Update the user's display name
       await updateProfile(firebaseUser, { displayName: name });
-
-      // Create user document in Firestore
-      const userData = {
-        name,
-        email,
-        createdAt: new Date(),
-        lastLoginAt: new Date()
-      };
-
-      await setDoc(doc(db, 'users', firebaseUser.uid), userData);
 
       return {
         id: firebaseUser.uid,
@@ -130,23 +102,8 @@ class AuthService {
     try {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
-      const firebaseUser = userCredential.user;
 
-      // Check if this is a new user and create/update their document
-      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-      
-      if (!userDoc.exists()) {
-        // New user - create document
-        const userData = {
-          name: firebaseUser.displayName || 'User',
-          email: firebaseUser.email || '',
-          createdAt: new Date(),
-          lastLoginAt: new Date()
-        };
-        await setDoc(doc(db, 'users', firebaseUser.uid), userData);
-      }
-
-      return await this.createUserFromFirebaseUser(firebaseUser);
+      return await this.createUserFromFirebaseUser(userCredential.user);
     } catch (error: any) {
       throw this.handleAuthError(error);
     }
@@ -179,20 +136,12 @@ class AuthService {
 
     try {
       // Update Firebase Auth profile
-      if (updates.name || updates.photoURL) {
-        await updateProfile(auth.currentUser, {
-          displayName: updates.name,
-          photoURL: updates.photoURL
-        });
-      }
-
-      // Update Firestore document
-      await updateDoc(doc(db, 'users', auth.currentUser.uid), {
-        ...updates,
-        updatedAt: new Date()
+      await updateProfile(auth.currentUser, {
+        displayName: updates.name,
+        photoURL: updates.photoURL
       });
 
-      // Update current user
+      // Update current user in memory
       if (this.currentUser) {
         this.currentUser = {
           ...this.currentUser,
@@ -224,13 +173,7 @@ class AuthService {
 
   // Update last login timestamp
   private async updateLastLogin(userId: string): Promise<void> {
-    try {
-      await updateDoc(doc(db, 'users', userId), {
-        lastLoginAt: new Date()
-      });
-    } catch (error) {
-      console.error('Failed to update last login:', error);
-    }
+    // No-op: Last login tracking moved to backend
   }
 
   // Get current user
