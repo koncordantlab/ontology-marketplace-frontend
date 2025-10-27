@@ -4,7 +4,7 @@
  */
 
 export const BACKEND_API = {
-  BASE_URL: (import.meta.env.VITE_BACKEND_BASE_URL as string),
+  BASE_URL: (import.meta.env.VITE_BACKEND_BASE_URL as string) || 'https://ontology-marketplace-main-34028ed.d2.zuplo.dev',
   
   // Auth endpoints
   AUTH: {
@@ -16,7 +16,7 @@ export const BACKEND_API = {
     LIST: '/search_ontologies',
     GET_BY_ID: (_id: string) => `/api/ontologies/${_id}`,
     CREATE: '/add_ontologies',
-    UPDATE: (_id: string) => `/update_ontology/${_id}`,
+    UPDATE: (_id: string) => `/update_ontology`,
     DELETE: (_id: string) => `/delete_ontologies`,
     SEARCH: '/search_ontologies',
   },
@@ -25,18 +25,6 @@ export const BACKEND_API = {
   UPLOAD: {
     FROM_URL: '/api/ontologies/upload-from-url',
     VALIDATE_URL: '/api/ontologies/validate-url',
-    ONTOLOGY: '/upload_ontology',
-  },
-
-  // Tags endpoints
-  TAGS: {
-    LIST: '/get_tags',
-  },
-  
-  // User endpoints
-  USER: {
-    GET: '/get_user',
-    UPDATE: '/update_user',
   },
   
   // Database endpoints
@@ -106,13 +94,7 @@ export class BackendApiClient {
     const { method = 'GET', body, headers = {}, params } = options;
     
     try {
-      let token: string | null = null;
-      try {
-        token = await this.getAuthToken();
-      } catch (e) {
-        // No authenticated user; proceed without Authorization header for public endpoints
-        token = null;
-      }
+      const token = await this.getAuthToken();
       
       // Build URL with query parameters if any
       let url = `${BACKEND_API.BASE_URL}${endpoint}`;
@@ -126,7 +108,7 @@ export class BackendApiClient {
       const response = await fetch(url, {
         method,
         headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           ...headers,
         },
@@ -171,11 +153,9 @@ export class BackendApiClient {
    * Create new ontology
    */
   static async createOntology(data: any) {
-    // The backend expects a list of payload objects for bulk creation
-    const payloadArray = [data];
     return this.request(BACKEND_API.ONTOLOGIES.CREATE, {
       method: 'POST',
-      body: payloadArray,
+      body: data,
     });
   }
 
@@ -183,10 +163,9 @@ export class BackendApiClient {
    * Update ontology
    */
   static async updateOntology(id: string, data: any) {
-    // Use PUT to update a single ontology by id with a flat payload
     return this.request(BACKEND_API.ONTOLOGIES.UPDATE(id), {
       method: 'PUT',
-      body: { ...data, id },
+      body: { ...data, id }, // Include id in the body for the gateway
     });
   }
 
@@ -194,10 +173,9 @@ export class BackendApiClient {
    * Delete ontology
    */
   static async deleteOntology(id: string) {
-    // The backend expects a DELETE with a list of UUIDs in the body
     return this.request(BACKEND_API.ONTOLOGIES.DELETE(id), {
       method: 'DELETE',
-      body: [id],
+      body: { id }, // Include id in the body for the gateway
     });
   }
 
@@ -218,18 +196,6 @@ export class BackendApiClient {
     return this.request(BACKEND_API.UPLOAD.FROM_URL, {
       method: 'POST',
       body: { url, ...metadata },
-    });
-  }
-
-  /**
-   * Upload ontology to backend service (proxy) which handles CORS/auth
-   * Payload shape:
-   * { uri, username, password, database, ttl_url }
-   */
-  static async uploadOntology(payload: any) {
-    return this.request(BACKEND_API.UPLOAD.ONTOLOGY, {
-      method: 'POST',
-      body: payload,
     });
   }
 
@@ -297,13 +263,6 @@ export class BackendApiClient {
    */
   static async getNeo4jDatabaseInfo() {
     return this.request(BACKEND_API.NEO4J.DATABASE_INFO);
-  }
-
-  /**
-   * Get list of available tags from backend
-   */
-  static async getTags(): Promise<string[]> {
-    return this.request(BACKEND_API.TAGS.LIST, { method: 'GET' });
   }
 }
 

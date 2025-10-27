@@ -111,7 +111,7 @@ VITE_DEFAULT_ONTOLOGY_IMAGE_URL=your_default_image_url
 
 ### Step 4: Cloudinary Setup (for Image Uploads)
 
-#### 4.1 Create Cloudinary Account
+#### 3.1 Create Cloudinary Account
 1. Go to [Cloudinary](https://cloudinary.com/)
 2. Sign up for free account
 3. Note your cloud name, API key, and API secret
