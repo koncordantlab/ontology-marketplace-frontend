@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, ExternalLink, Loader, CheckCircle, AlertCircle, Save } from 'lucide-react';
+import { Plus, ExternalLink, Loader, CheckCircle, AlertCircle, Save, Upload } from 'lucide-react';
 import { ThumbnailUpload } from './ThumbnailUpload';
-import { TagManagerDialog } from './TagManagerDialog';
 import { BackendApiClient } from '../config/backendApi';
 import { ontologyService, Ontology } from '../services/ontologyService';
 
@@ -23,8 +22,7 @@ export const OntologyForm: React.FC<OntologyFormProps> = ({
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [showTagDialog, setShowTagDialog] = useState(false);
+  const [tags, setTags] = useState('');
   const [ontologyUrl, setOntologyUrl] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState('');
@@ -41,7 +39,7 @@ export const OntologyForm: React.FC<OntologyFormProps> = ({
     if (mode === 'edit' && initialData) {
       setTitle(initialData.name || '');
       setDescription(initialData.description || '');
-      setSelectedTags((initialData as any).tags || (initialData as any).properties?.tags || []);
+      setTags(initialData.properties?.tags?.join(', ') || '');
       setOntologyUrl(initialData.properties?.source_url || '');
       setIsPublic(initialData.properties?.is_public || false);
       setThumbnailUrl(initialData.properties?.image_url || '');
@@ -92,8 +90,7 @@ export const OntologyForm: React.FC<OntologyFormProps> = ({
           description,
           isPublic,
           ontologyUrl || undefined,
-          thumbnailUrl || undefined,
-          selectedTags
+          thumbnailUrl || undefined
         );
       } else {
         // Edit mode - update existing ontology
@@ -107,26 +104,25 @@ export const OntologyForm: React.FC<OntologyFormProps> = ({
           {
             name: title,
             description: description,
-            source_url: ontologyUrl || '',
-            image_url: thumbnailUrl || '',
-            is_public: isPublic,
-            tags: selectedTags
+            properties: {
+              tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
+              source_url: ontologyUrl || '',
+              image_url: thumbnailUrl || '',
+              is_public: isPublic
+            }
           }
         );
       }
 
-      if ((result as any).error) {
-        setSaveError((result as any).error);
-      } else if ((result as any).ontology) {
+      if (result.error) {
+        setSaveError(result.error);
+      } else if (result.ontology) {
         setSaveSuccess(true);
-        onSuccess?.((result as any).ontology);
+        onSuccess?.(result.ontology);
         
         // Navigate after success
         setTimeout(() => {
-          const created = (result as any).ontology as any;
-          // Prefer UUID over ID for consistency with routing
-          const ontologyUuid = created?.uuid || created?.id;
-          onNavigate('ontology-details', ontologyUuid);
+          onNavigate('ontology-details', result.ontology?.id);
         }, 1500);
       }
     } catch (error) {
@@ -238,31 +234,17 @@ export const OntologyForm: React.FC<OntologyFormProps> = ({
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-2">
                   Tags
                 </label>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {selectedTags.map((tag, idx) => (
-                    <span key={`${tag}-${idx}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedTags((prev) => prev.filter((t) => t !== tag))}
-                        className="ml-1 text-blue-900/70 hover:text-blue-900"
-                        title="Remove"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setShowTagDialog(true)}
-                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                  >
-                    Add Tags
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  id="tags"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200"
+                  placeholder="Comma-separated tags"
+                />
               </div>
 
               <div>
@@ -280,16 +262,6 @@ export const OntologyForm: React.FC<OntologyFormProps> = ({
                 </p>
               </div>
             </div>
-
-            <TagManagerDialog
-              open={showTagDialog}
-              initialSelected={selectedTags}
-              onClose={() => setShowTagDialog(false)}
-              onSave={(tags) => {
-                setSelectedTags(tags);
-                setShowTagDialog(false);
-              }}
-            />
 
             {/* Right Column - Thumbnail and Submit Button */}
             <div className="space-y-6">
