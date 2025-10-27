@@ -4,7 +4,7 @@
  */
 
 export const BACKEND_API = {
-  BASE_URL: (import.meta.env.VITE_BACKEND_BASE_URL as string) || 'https://ontology-marketplace-main-34028ed.d2.zuplo.dev',
+  BASE_URL: (import.meta.env.VITE_BACKEND_BASE_URL as string),
   
   // Auth endpoints
   AUTH: {
