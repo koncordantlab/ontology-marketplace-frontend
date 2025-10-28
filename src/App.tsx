@@ -25,8 +25,15 @@ function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingHash, setPendingHash] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check for hash URL on initial load
+    const hash = window.location.hash;
+    if (hash) {
+      setPendingHash(hash);
+    }
+
     // Listen for authentication state changes
     const unsubscribe = authService.onAuthStateChange((user) => {
       setCurrentUser(user);
@@ -48,6 +55,45 @@ function App() {
 
     return unsubscribe;
   }, []);
+
+  // Handle hash-based URLs for opening views in new tabs
+  useEffect(() => {
+    // Only handle hash routing when user is authenticated and not loading
+    if (!currentUser || isLoading) return;
+
+    const processHash = (hash: string) => {
+      if (!hash) return;
+
+      // Parse hash URL (e.g., #ontology-details?id=123)
+      const [view, queryString] = hash.substring(1).split('?');
+      if (queryString) {
+        const urlParams = new URLSearchParams(queryString);
+        const id = urlParams.get('id');
+        if (id) {
+          setSelectedOntologyId(id);
+        }
+      }
+
+      // Set the view based on hash
+      if (view && ['ontology-details', 'edit-ontology'].includes(view)) {
+        setCurrentView(view as ViewType);
+      }
+    };
+
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      processHash(hash);
+    };
+
+    // Process pending hash or current hash
+    const hashToProcess = pendingHash || window.location.hash;
+    processHash(hashToProcess);
+    setPendingHash(null); // Clear pending hash after processing
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentUser, isLoading, pendingHash]);
 
   // Handle Firebase permission errors by defaulting to demo mode
   useEffect(() => {
@@ -117,8 +163,8 @@ function App() {
     setCurrentUser(updatedUser);
   };
 
-  // Show loading spinner while checking authentication
-  if (isLoading) {
+  // Show loading spinner while checking authentication or if there's a pending hash
+  if (isLoading || pendingHash) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
