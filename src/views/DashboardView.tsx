@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Settings, Eye, EyeOff, FileText, Calendar, Star, Tag } from 'lucide-react';
+import { Search, Plus, Settings, Eye, EyeOff, FileText, Tag } from 'lucide-react';
 import { ontologyService, Ontology } from '../services/ontologyService';
 import { authService } from '../services/authService';
 
@@ -342,7 +342,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
             ) : filteredOntologies.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredOntologies.map((ontology) => (
-                  <div key={ontology.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                  <div 
+                    key={ontology.id} 
+                    onClick={() => onNavigate('ontology-details', ontology.id)}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer"
+                  >
                     {/* Thumbnail */}
                     <div className="h-48 bg-gray-100 rounded-t-lg flex items-center justify-center">
                       {ontology.properties?.image_url ? (
@@ -352,7 +356,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                           className="w-full h-full object-cover rounded-t-lg"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling!.style.display = 'flex';
+                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                            if (fallback) {
+                              fallback.style.display = 'flex';
+                            }
                           }}
                         />
                       ) : null}
@@ -409,7 +416,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                         </div>
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               // Navigate to view/edit
                               console.log('View/Edit ontology:', ontology.id);
                               onNavigate('ontology-details', ontology.id);
@@ -419,7 +427,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                             View
                           </button>
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               // Navigate to edit
                               console.log('Edit ontology:', ontology.id);
                               onNavigate('edit-ontology', ontology.id);
