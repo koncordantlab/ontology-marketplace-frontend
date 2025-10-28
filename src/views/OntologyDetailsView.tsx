@@ -30,6 +30,16 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [uploadDatabase, setUploadDatabase] = useState('neo4j');
   const [isUploading, setIsUploading] = useState(false);
 
+  // Tag editor state
+  const [editTagIndex, setEditTagIndex] = useState<number | null>(null);
+  const [editTagValue, setEditTagValue] = useState('');
+  // Tag dialog state
+  const [showTagDialog, setShowTagDialog] = useState(false);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [selectedDialogTags, setSelectedDialogTags] = useState<string[]>([]);
+  const [dialogNewTag, setDialogNewTag] = useState('');
+  const [dialogTempNewTags, setDialogTempNewTags] = useState<string[]>([]);
+
   useEffect(() => {
     const fetchOntology = async () => {
       if (!ontologyId) {
@@ -104,6 +114,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       is_public: !!ontology.properties?.is_public,
       node_count: ontology.node_count ?? null,
       relationship_count: ontology.relationship_count ?? null,
+      tags: ontology.tags || [],
     };
     const cur = {
       name: editable.name,
@@ -113,6 +124,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       is_public: !!editable.properties?.is_public,
       node_count: editable.node_count ?? null,
       relationship_count: editable.relationship_count ?? null,
+      tags: editable.tags || [],
     };
     // Dirty if fields changed or a new image file was chosen
     return JSON.stringify(orig) !== JSON.stringify(cur) || !!selectedImageFile;
@@ -187,6 +199,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
         node_count: editable.node_count ?? ontology.node_count ?? null,
         relationship_count: editable.relationship_count ?? ontology.relationship_count ?? null,
         score: ontology.score ?? null,
+        tags: editable.tags ?? ontology.tags ?? [],
         // Keep nested properties for compatibility with other consumers
         properties: {
           source_url: (editable.properties?.source_url ?? ontology.properties?.source_url) || '',
@@ -373,15 +386,91 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                   Tags
                 </label>
                 <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                  <div className="flex flex-wrap gap-1">
-                    {(ontology.tags || []).map((tag, index) => (
-                      <span
-                        key={`${tag}-${index}`}
-                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                      >
-                        {tag}
-                      </span>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {(editable?.tags || ontology.tags || []).map((tag, index) => (
+                      <div key={`${tag}-${index}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {editTagIndex === index ? (
+                          <input
+                            type="text"
+                            value={editTagValue}
+                            onChange={(e) => setEditTagValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                setEditable(prev => {
+                                  if (!prev) return prev;
+                                  const updated = [...(prev.tags || [])];
+                                  updated[index] = editTagValue.trim();
+                                  return { ...prev, tags: updated } as any;
+                                });
+                                setEditTagIndex(null);
+                                setEditTagValue('');
+                              }
+                              if (e.key === 'Escape') {
+                                setEditTagIndex(null);
+                                setEditTagValue('');
+                              }
+                            }}
+                            className="px-1 py-0.5 text-xs border border-blue-300 rounded bg-white text-blue-900"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!canEdit) return;
+                              setEditTagIndex(index);
+                              setEditTagValue(tag);
+                            }}
+                            className="cursor-text"
+                            title={canEdit ? 'Click to edit tag' : undefined}
+                          >
+                            {tag}
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditable(prev => {
+                                if (!prev) return prev;
+                                const updated = [...(prev.tags || [])];
+                                updated.splice(index, 1);
+                                return { ...prev, tags: updated } as any;
+                              });
+                            }}
+                            className="ml-1 text-blue-900/70 hover:text-blue-900"
+                            title="Remove tag"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     ))}
+                    {canEdit && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              // Load available tags from backend
+                              const tags = await BackendApiClient.getTags();
+                              setAvailableTags(Array.isArray(tags) ? tags : []);
+                            } catch (e) {
+                              setAvailableTags([]);
+                            }
+                            // Preselect existing tags
+                            const current = editable?.tags || ontology.tags || [];
+                            setSelectedDialogTags(current);
+                            setDialogNewTag('');
+                            setDialogTempNewTags([]);
+                            setShowTagDialog(true);
+                          }}
+                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -579,6 +668,116 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                   className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
                 >
                   {isUploading ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tag Management Dialog */}
+        {showTagDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Manage Tags</h2>
+
+              <div className="space-y-4 max-h-[60vh] overflow-auto pr-1">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Available Tags</label>
+                  <div className="flex flex-wrap gap-2">
+                    {availableTags.length === 0 && (
+                      <span className="text-sm text-gray-500">No tags available</span>
+                    )}
+                    {availableTags.map((tag) => {
+                      const selected = selectedDialogTags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDialogTags(prev => selected ? prev.filter(t => t !== tag) : [...prev, tag]);
+                          }}
+                          className={`px-2 py-1 rounded-full text-xs border ${selected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Create New Tag</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={dialogNewTag}
+                      onChange={(e) => setDialogNewTag(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && dialogNewTag.trim()) {
+                          const tag = dialogNewTag.trim();
+                          setDialogTempNewTags(prev => Array.from(new Set([...prev, tag])));
+                          setSelectedDialogTags(prev => Array.from(new Set([...prev, tag])));
+                          setDialogNewTag('');
+                        }
+                      }}
+                      placeholder="Enter a new tag"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!dialogNewTag.trim()) return;
+                        const tag = dialogNewTag.trim();
+                        setDialogTempNewTags(prev => Array.from(new Set([...prev, tag])));
+                        setSelectedDialogTags(prev => Array.from(new Set([...prev, tag])));
+                        setDialogNewTag('');
+                      }}
+                      className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {dialogTempNewTags.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {dialogTempNewTags.map((tag) => (
+                        <span key={tag} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {tag}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDialogTempNewTags(prev => prev.filter(t => t !== tag));
+                              setSelectedDialogTags(prev => prev.filter(t => t !== tag));
+                            }}
+                            className="text-green-900/70 hover:text-green-900"
+                            title="Remove"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowTagDialog(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const committed = Array.from(new Set(selectedDialogTags));
+                    setEditable(prev => prev ? { ...prev, tags: committed } as any : prev);
+                    setShowTagDialog(false);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                >
+                  Save
                 </button>
               </div>
             </div>
