@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { CommentSystem } from '../components/CommentSystem';
 import { ontologyService, Ontology } from '../services/ontologyService';
 import { BackendApiClient } from '../config/backendApi';
@@ -19,6 +19,9 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [canEdit, setCanEdit] = useState(false);
   const [editable, setEditable] = useState<Ontology | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fetchOntology = async () => {
@@ -101,8 +104,9 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       image_url: editable.properties?.image_url || '',
       is_public: !!editable.properties?.is_public,
     };
-    return JSON.stringify(orig) !== JSON.stringify(cur);
-  }, [ontology, editable]);
+    // Dirty if fields changed or a new image file was chosen
+    return JSON.stringify(orig) !== JSON.stringify(cur) || !!selectedImageFile;
+  }, [ontology, editable, selectedImageFile]);
 
   const handleFieldChange = (field: 'name' | 'description', value: string) => {
     if (!editable) return;
@@ -120,13 +124,23 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     });
   };
 
-  const handleImageSelect = async (file: File) => {
+  const handleImageSelect = (file: File) => {
     if (!file) return;
-    const res = await cloudinaryService.uploadImage(file, { preset: undefined });
-    if (res.success && res.url) {
-      handlePropChange('image_url', res.url);
-    } else {
-      console.error('Image upload failed:', res.error);
+    // Hold in memory and preview; upload will happen on Save
+    setSelectedImageFile(file);
+    const url = URL.createObjectURL(file);
+    setSelectedImagePreviewUrl(url);
+  };
+
+  const clearSelectedImage = () => {
+    if (selectedImagePreviewUrl) {
+      URL.revokeObjectURL(selectedImagePreviewUrl);
+    }
+    setSelectedImagePreviewUrl(null);
+    setSelectedImageFile(null);
+    // Reset the file input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -137,21 +151,50 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       // Get the ontology UUID (same logic as in checkPermission)
       const ontologyUuid = (ontology as any).uuid || ontology.id;
       
-      const updates: Partial<Ontology> = {
-        name: editable.name,
-        description: editable.description,
+      // If a new image file was chosen, upload it first
+      let imageUrlToSave = editable.properties?.image_url || '';
+      if (selectedImageFile) {
+        const uploadRes = await cloudinaryService.uploadImage(selectedImageFile, {
+          preset: 'ontologymarketplace',
+          folder: 'ontology-images',
+          tags: ['ontology', 'image']
+        });
+        if (!uploadRes.success || !uploadRes.url) {
+          throw new Error(uploadRes.error || 'Image upload failed');
+        }
+        imageUrlToSave = uploadRes.url;
+      }
+
+      const updates: any = {
+        // Top-level fields expected by backend
+        name: editable.name ?? ontology.name,
+        description: editable.description ?? ontology.description,
+        source_url: (editable.properties?.source_url ?? ontology.properties?.source_url) || '',
+        image_url: (imageUrlToSave ?? ontology.properties?.image_url) || '',
+        is_public: (
+          editable.properties?.is_public ?? ontology.properties?.is_public ?? false
+        ),
+        node_count: ontology.node_count ?? null,
+        relationship_count: ontology.relationship_count ?? null,
+        score: ontology.score ?? null,
+        // Keep nested properties for compatibility with other consumers
         properties: {
-          source_url: editable.properties?.source_url || '',
-          image_url: editable.properties?.image_url || '',
-          is_public: !!editable.properties?.is_public,
+          source_url: (editable.properties?.source_url ?? ontology.properties?.source_url) || '',
+          image_url: (imageUrlToSave ?? ontology.properties?.image_url) || '',
+          is_public: (
+            editable.properties?.is_public ?? ontology.properties?.is_public ?? false
+          ),
         },
-      } as any;
+      };
+
       const result = await BackendApiClient.updateOntology(ontologyUuid, updates);
       if ((result as any)?.success === false) {
         throw new Error((result as any)?.error || 'Failed to update ontology');
       }
       // Refresh local state
-      setOntology({ ...editable, id: ontology.id });
+      setOntology({ ...editable, id: ontology.id, properties: { ...editable.properties, image_url: imageUrlToSave } });
+      // Clear selected image state after successful save
+      clearSelectedImage();
     } catch (e) {
       console.error('Save failed:', e);
     } finally {
@@ -226,8 +269,14 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
           <h2 className="text-lg font-semibold text-gray-900 mb-6"></h2>
           
           {/* Image between DETAILS title and Title field */}
-          <div className="mb-6 max-h-48 flex items-center justify-center">
-            {editable?.properties?.image_url ? (
+          <div className="mb-2 max-h-48 flex items-center justify-center">
+            {selectedImagePreviewUrl ? (
+              <img
+                src={selectedImagePreviewUrl}
+                alt="Selected preview"
+                className="w-full h-full max-h-48 object-contain rounded-lg"
+              />
+            ) : editable?.properties?.image_url ? (
               <img 
                 src={editable.properties.image_url} 
                 alt={editable.name}
@@ -240,15 +289,28 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
           </div>
           {canEdit && (
             <div className="mb-6">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleImageSelect(file);
-                }}
-                className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageSelect(file);
+                  }}
+                  className="block flex-1 text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                />
+                {selectedImageFile && (
+                  <button
+                    type="button"
+                    onClick={clearSelectedImage}
+                    className="px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 whitespace-nowrap"
+                    title="Reset image widget"
+                  >
+                    Reset Image
+                  </button>
+                )}
+              </div>
             </div>
           )}
           
