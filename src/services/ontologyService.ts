@@ -9,7 +9,6 @@ export interface Ontology {
     source_url?: string;
     image_url?: string;
     is_public: boolean;
-    tags?: string[];
   };
   createdAt?: Date;
   updatedAt?: Date;
@@ -22,6 +21,7 @@ export interface Ontology {
   fileUrls?: string[];
   score?: number | null;
   uuid?: string;
+  tags?: string[];
 }
 
 export interface OntologyResponse {
@@ -240,6 +240,7 @@ class OntologyService {
           uid: getValue(ontology, 'uid'),
           score: getValue(ontology, 'score'),
           uuid: getValue(ontology, 'uuid'),
+          tags: getValue(ontology, 'tags', 'properties.tags') || [],
           // Add any other fields that might exist
           ...(Object.keys(ontology).reduce((acc, key) => {
             if (!['id', 'name', 'title', 'description', 'properties', 'createdAt', 'created_at', 'updatedAt', 'updated_at'].includes(key)) {
