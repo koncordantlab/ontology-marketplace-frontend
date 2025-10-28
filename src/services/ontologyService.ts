@@ -223,6 +223,7 @@ class OntologyService {
 
         return {
           id,
+          name,
           description,
           properties: {
             source_url: sourceUrl,
@@ -248,9 +249,6 @@ class OntologyService {
           }, {} as any))
         };
       });
-
-
-
       return {
         success: true,
         data: normalizedOntologies
