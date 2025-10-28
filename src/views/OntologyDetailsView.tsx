@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { GraphVisualization } from '../components/GraphVisualization';
 import { CommentSystem } from '../components/CommentSystem';
 import { ontologyService, Ontology } from '../services/ontologyService';
 
@@ -113,16 +112,26 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{ontology.name}</h1>
-        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Details Panel */}
-          <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">DETAILS</h2>
-            
-            <div className="space-y-6">
+        {/* Details Panel */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6"></h2>
+          
+          {/* Image between DETAILS title and Title field */}
+          {ontology.properties?.image_url && (
+            <div className="mb-6 max-h-48 flex items-center justify-center">
+              <img 
+                src={ontology.properties.image_url} 
+                alt={ontology.name}
+                className="w-full h-full max-h-48 object-contain rounded-lg"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+          
+          <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Title
@@ -223,52 +232,43 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 </div>
               )}
               
-              <div className="flex flex-col space-y-3 pt-4">                
+              {/* Buttons */}
+              <div className="flex gap-3 justify-end pt-4">
                 <button
                   onClick={handleEdit}
-                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+                  className="px-8 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
                 >
                   EDIT
                 </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Graph View Panel */}
-          <div className="lg:col-span-6 bg-white rounded-lg shadow-sm border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">READ-ONLY GRAPH VIEW</h2>
-            <GraphVisualization width={600} height={400} className="h-96" />
-            
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={handleUpload}
-                className="px-8 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
-              >
-                UPLOAD TO DATABASE
-              </button>
-            </div>
-          </div>
-
-          {/* Comments Panel */}
-          <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">COMMENTS</h2>
-            </div>
-            
-            <CommentSystem />
-            
-            {/* Add Comment Form */}
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <textarea
-                placeholder="Add a comment..."
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none text-sm"
-              />
-              <div className="mt-2 flex justify-end">
-                <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
-                  Post Comment
+                <button
+                  onClick={handleUpload}
+                  className="px-8 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
+                >
+                  UPLOAD TO DATABASE
                 </button>
               </div>
+            </div>
+        </div>
+
+        {/* Comments Section - Full Width Below */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 mt-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold text-gray-900">COMMENTS</h2>
+          </div>
+          
+          <CommentSystem />
+          
+          {/* Add Comment Form */}
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <textarea
+              placeholder="Add a comment..."
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none text-sm"
+            />
+            <div className="mt-2 flex justify-end">
+              <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
+                Post Comment
+              </button>
             </div>
           </div>
         </div>
