@@ -16,7 +16,7 @@ export const BACKEND_API = {
     LIST: '/search_ontologies',
     GET_BY_ID: (_id: string) => `/api/ontologies/${_id}`,
     CREATE: '/add_ontologies',
-    UPDATE: (_id: string) => `/update_ontology`,
+    UPDATE: (_id: string) => `/update_ontology/${_id}`,
     DELETE: (_id: string) => `/delete_ontologies`,
     SEARCH: '/search_ontologies',
   },

@@ -134,6 +134,9 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     if (!editable || !ontology?.id) return;
     setIsSaving(true);
     try {
+      // Get the ontology UUID (same logic as in checkPermission)
+      const ontologyUuid = (ontology as any).uuid || ontology.id;
+      
       const updates: Partial<Ontology> = {
         name: editable.name,
         description: editable.description,
@@ -143,7 +146,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
           is_public: !!editable.properties?.is_public,
         },
       } as any;
-      const result = await BackendApiClient.updateOntology(ontology.id, updates);
+      const result = await BackendApiClient.updateOntology(ontologyUuid, updates);
       if ((result as any)?.success === false) {
         throw new Error((result as any)?.error || 'Failed to update ontology');
       }
