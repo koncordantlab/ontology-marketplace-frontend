@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 
 interface Comment {
   id: string;
@@ -10,30 +10,8 @@ interface Comment {
   link?: string;
 }
 
-const mockComments: Comment[] = [
-  {
-    id: '1',
-    author: 'Tyler Tarver',
-    content: 'Is this your quote or did you steal it?',
-    timestamp: '12:14 PM Today'
-  },
-  {
-    id: '2',
-    author: 'Tyler Tarver',
-    content: 'Misspelled on purpose or as an SNL reference?',
-    timestamp: '12:13 PM Today'
-  },
-  {
-    id: '3',
-    author: 'Tyler Tarver',
-    content: 'www.youtube.com/sirtylertarver',
-    timestamp: '10:15 PM Today',
-    link: 'www.youtube.com/sirtylertarver'
-  }
-];
-
 export const CommentSystem: React.FC = () => {
-  const [comments] = useState<Comment[]>(mockComments);
+  const [comments] = useState<Comment[]>([]);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
