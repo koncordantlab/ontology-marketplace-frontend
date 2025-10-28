@@ -227,31 +227,18 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
 
     setIsUploading(true);
     try {
-      const uploadUrl = import.meta.env.VITE_UPLOAD_URL;
-      if (!uploadUrl) {
-        throw new Error('VITE_UPLOAD_URL is not configured');
-      }
-
       const payload = {
-        uri: uploadUri,
-        username: uploadUsername,
-        password: uploadPassword,
-        database: uploadDatabase,
-        ttl_url: ontology.properties?.source_url || ontology.file_url || ''
+        neo4j_uri: uploadUri,
+        neo4j_username: uploadUsername,
+        neo4j_password: uploadPassword,
+        neo4j_database: uploadDatabase,
+        source_url: ontology.properties?.source_url || ontology.file_url || ''
       };
 
-      const response = await fetch(uploadUrl, {
+      await BackendApiClient.request('/upload_ontology', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        body: payload,
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Upload failed: ${response.status} - ${errorText}`);
-      }
 
       alert('Ontology uploaded successfully!');
       setShowUploadDialog(false);
