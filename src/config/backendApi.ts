@@ -25,6 +25,7 @@ export const BACKEND_API = {
   UPLOAD: {
     FROM_URL: '/api/ontologies/upload-from-url',
     VALIDATE_URL: '/api/ontologies/validate-url',
+    ONTOLOGY: '/upload_ontology',
   },
   
   // Database endpoints
@@ -196,6 +197,18 @@ export class BackendApiClient {
     return this.request(BACKEND_API.UPLOAD.FROM_URL, {
       method: 'POST',
       body: { url, ...metadata },
+    });
+  }
+
+  /**
+   * Upload ontology to backend service (proxy) which handles CORS/auth
+   * Payload shape:
+   * { uri, username, password, database, ttl_url }
+   */
+  static async uploadOntology(payload: any) {
+    return this.request(BACKEND_API.UPLOAD.ONTOLOGY, {
+      method: 'POST',
+      body: payload,
     });
   }
 
