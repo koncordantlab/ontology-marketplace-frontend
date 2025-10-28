@@ -151,7 +151,7 @@ src/
 │   ├── LoginView.tsx           # Authentication
 │   ├── NewOntologyView.tsx     # Create new ontology
 │   ├── UseOntologyView.tsx     # Use/upload ontologies
-│   ├── EditOntologyView.tsx    # Edit existing ontologies
+│   ├── (removed) EditOntologyView.tsx
 │   └── OntologyDetailsView.tsx # View ontology details
 ├── services/            # Business logic and API services
 │   ├── authService.ts          # Firebase authentication

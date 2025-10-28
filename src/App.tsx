@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Menu, X, LogOut, Settings } from 'lucide-react';
 import { UseOntologyView } from './views/UseOntologyView';
 import { OntologyDetailsView } from './views/OntologyDetailsView';
-import { EditOntologyView } from './views/EditOntologyView';
+// import { EditOntologyView } from './views/EditOntologyView';
 import { NewOntologyView } from './views/NewOntologyView';
 import { DashboardView } from './views/DashboardView';
 import { LoginView } from './views/LoginView';
@@ -322,12 +322,7 @@ function App() {
             onNavigate={handleViewChange} 
           />
         )}
-        {currentView === 'edit-ontology' && (
-          <EditOntologyView 
-            ontologyId={selectedOntologyId} 
-            onNavigate={handleViewChange} 
-          />
-        )}
+        {/* Edit ontology view removed */}
         {currentView === 'new-ontology' && (
           <NewOntologyView onNavigate={handleViewChange} />
         )}

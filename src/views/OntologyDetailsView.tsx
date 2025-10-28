@@ -6,12 +6,11 @@ import { cloudinaryService } from '../services/cloudinaryService';
 
 interface OntologyDetailsViewProps {
   ontologyId: string | null;
-  onNavigate: (view: string, ontologyId?: string) => void;
+  onNavigate?: (view: string, ontologyId?: string) => void;
 }
 
 export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
-  ontologyId,
-  onNavigate
+  ontologyId
 }) => {
   const [ontology, setOntology] = useState<Ontology | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,6 +21,14 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Dialog state
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadUri, setUploadUri] = useState('');
+  const [uploadUsername, setUploadUsername] = useState('neo4j');
+  const [uploadPassword, setUploadPassword] = useState('');
+  const [uploadDatabase, setUploadDatabase] = useState('neo4j');
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const fetchOntology = async () => {
@@ -203,9 +210,59 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   };
 
   const handleUpload = () => {
-    console.log('Uploading ontology to database:', ontologyId);
-    // Navigate to use ontology view for database upload
-    onNavigate('use-ontology', ontologyId || undefined);
+    setShowUploadDialog(true);
+  };
+
+  const handleDialogCancel = () => {
+    setShowUploadDialog(false);
+    setUploadUri('');
+    setUploadPassword('');
+  };
+
+  const handleDialogUpload = async () => {
+    if (!uploadUri || !uploadPassword || !ontology) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const uploadUrl = import.meta.env.VITE_UPLOAD_URL;
+      if (!uploadUrl) {
+        throw new Error('VITE_UPLOAD_URL is not configured');
+      }
+
+      const payload = {
+        uri: uploadUri,
+        username: uploadUsername,
+        password: uploadPassword,
+        database: uploadDatabase,
+        ttl_url: ontology.properties?.source_url || ontology.file_url || ''
+      };
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+      }
+
+      alert('Ontology uploaded successfully!');
+      setShowUploadDialog(false);
+      setUploadUri('');
+      setUploadPassword('');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to upload ontology');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // Deprecated: Editing now happens inline via Save
@@ -279,7 +336,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
             ) : editable?.properties?.image_url ? (
               <img 
                 src={editable.properties.image_url} 
-                alt={editable.name}
+                alt={editable.name || 'Ontology image'}
                 className="w-full h-full max-h-48 object-contain rounded-lg"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
@@ -322,6 +379,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 <input
                   type="text"
                   value={editable?.name || ''}
+                  placeholder={'Untitled Ontology'}
                   onChange={(e) => handleFieldChange('name', e.target.value)}
                   disabled={!canEdit}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 disabled:bg-gray-100"
@@ -461,6 +519,83 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
               <div className="mt-2 flex justify-end">
                 <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
                   Post Comment
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Upload Dialog */}
+        {showUploadDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload to Neo4j Database</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Neo4j URI *
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadUri}
+                    onChange={(e) => setUploadUri(e.target.value)}
+                    placeholder="neo4j+s://xxxx.databases.neo4j.io"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadUsername}
+                    onChange={(e) => setUploadUsername(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={uploadPassword}
+                    onChange={(e) => setUploadPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Database
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadDatabase}
+                    onChange={(e) => setUploadDatabase(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={handleDialogCancel}
+                  disabled={isUploading}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDialogUpload}
+                  disabled={isUploading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  {isUploading ? 'Uploading...' : 'Upload'}
                 </button>
               </div>
             </div>

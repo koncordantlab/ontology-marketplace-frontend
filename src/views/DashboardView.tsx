@@ -374,7 +374,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
 
                     {/* Content */}
                     <div className="p-4">
-                      <h3 className="font-medium text-gray-900 truncate">{ontology.name}</h3>
+                      <h3 className="font-medium text-gray-900 truncate">{ontology.name || 'Untitled Ontology'}</h3>
                       <p className="text-sm text-gray-600 mt-1 line-clamp-2">{ontology.description}</p>
                       
                       {/* Tags */}
