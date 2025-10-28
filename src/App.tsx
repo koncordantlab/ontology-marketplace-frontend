@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { User, Menu, X, Upload } from 'lucide-react';
 import { UseOntologyView } from './views/UseOntologyView';
 import { OntologyDetailsView } from './views/OntologyDetailsView';
-// import { EditOntologyView } from './views/EditOntologyView';
+import { EditOntologyView } from './views/EditOntologyView';
 import { NewOntologyView } from './views/NewOntologyView';
 import { DashboardView } from './views/DashboardView';
 import { LoginView } from './views/LoginView';
@@ -21,13 +21,13 @@ interface User {
 }
 
 function App() {
-  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
+  const [currentView, setCurrentView] = useState<ViewType>('login');
   const [selectedOntologyId, setSelectedOntologyId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingHash, setPendingHash] = useState<string | null>(null);
 
   // Universal upload dialog state
   const [showUploadDialog, setShowUploadDialog] = useState(false);
@@ -44,9 +44,9 @@ function App() {
   // Simplified hash parser - processes hash into view and ID
   const parseHash = (hash: string): { view: ViewType | null; id: string | null } => {
     if (!hash) return { view: null, id: null };
-    
+
     const hashContent = hash.substring(1); // Remove #
-    
+
     // Format: #ontology-details/uuid
     const parts = hashContent.split('/');
     if (parts.length === 2) {
@@ -55,7 +55,7 @@ function App() {
         return { view: view as ViewType, id };
       }
     }
-    
+
     // Format: #dashboard or single view name
     if (parts.length === 1) {
       const part = parts[0];
@@ -70,7 +70,7 @@ function App() {
         return { view: 'ontology-details', id: part };
       }
     }
-    
+
     // Legacy format: #ontology-details?id=uuid
     const legacyMatch = hashContent.match(/^([^?]+)\?id=(.+)$/);
     if (legacyMatch) {
@@ -79,43 +79,24 @@ function App() {
         return { view: view as ViewType, id };
       }
     }
-    
+
     return { view: null, id: null };
   };
 
   useEffect(() => {
-    // Process hash FIRST, before setting any default views
-    // This avoids race conditions where dashboard view overrides hash-based navigation
+    // Check for hash URL on initial load
     const hash = window.location.hash;
-    const parsedHash = parseHash(hash); // Parse once and reuse
-    
-    // Set view and ID from hash if present
-    if (parsedHash.view) {
-      setCurrentView(parsedHash.view);
-    }
-    if (parsedHash.id) {
-      setSelectedOntologyId(parsedHash.id);
+    if (hash) {
+      setPendingHash(hash);
     }
 
     // Listen for authentication state changes
-    const unsubscribe = authService.onAuthStateChange(async (user) => {
+    const unsubscribe = authService.onAuthStateChange((user) => {
       setCurrentUser(user);
       if (user) {
-        // Only override view if we're on login screen
-        setCurrentView((prev) => (prev === 'login' ? (parsedHash.view || 'dashboard') : prev));
-        // Fetch user account and permissions after login
-        try {
-          await userService.refresh();
-        } catch (error) {
-          console.error('Failed to fetch user account on login:', error);
-        }
+        setCurrentView('dashboard');
       } else {
-        // On logout, only set dashboard if no hash was parsed
-        if (!parsedHash.view) {
-          setCurrentView('dashboard');
-        }
-        // Clear cache on logout
-        userService.clear();
+        setCurrentView('login');
       }
       setIsLoading(false);
     });
@@ -124,48 +105,51 @@ function App() {
     const user = authService.getCurrentUser();
     if (user) {
       setCurrentUser(user);
-      // Only set dashboard if no hash was processed
-      if (!parsedHash.view) {
-        setCurrentView('dashboard');
-      }
-      // Fetch user account if user is already logged in
-      // For detail views, we need permissions loaded ASAP, so start refresh immediately
-      // (Don't await here to avoid blocking UI, but OntologyDetailsView will await if needed)
-      userService.refresh().catch((error) => {
-        console.error('Failed to fetch user account on initial load:', error);
-      });
-    } else {
-      // No user - if no hash, show dashboard
-      if (!parsedHash.view) {
-        setCurrentView('dashboard');
-      }
+      setCurrentView('dashboard');
     }
     setIsLoading(false);
 
     return unsubscribe;
   }, []);
 
-  // Handle hash changes (for navigation within same window)
+  // Handle hash-based URLs for opening views in new tabs
   useEffect(() => {
-    if (isLoading) return;
+    // Only handle hash routing when user is authenticated and not loading
+    if (!currentUser || isLoading) return;
 
-    const handleHashChange = () => {
-      const hash = window.location.hash;
-      const parsed = parseHash(hash);
-      
-      if (parsed.view) {
-        setCurrentView(parsed.view);
+    const processHash = (hash: string) => {
+      if (!hash) return;
+
+      // Parse hash URL (e.g., #ontology-details?id=123)
+      const [view, queryString] = hash.substring(1).split('?');
+      if (queryString) {
+        const urlParams = new URLSearchParams(queryString);
+        const id = urlParams.get('id');
+        if (id) {
+          setSelectedOntologyId(id);
+        }
       }
-      if (parsed.id !== null) {
-        // null means no ID in hash, undefined means don't change
-        setSelectedOntologyId(parsed.id);
+
+      // Set the view based on hash
+      if (view && ['ontology-details', 'edit-ontology'].includes(view)) {
+        setCurrentView(view as ViewType);
       }
     };
 
-    // Listen for hash changes (when user navigates via back/forward or direct hash change)
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      processHash(hash);
+    };
+
+    // Process pending hash or current hash
+    const hashToProcess = pendingHash || window.location.hash;
+    processHash(hashToProcess);
+    setPendingHash(null); // Clear pending hash after processing
+
+    // Listen for hash changes
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [isLoading]);
+  }, [currentUser, isLoading, pendingHash]);
 
   // Handle Firebase permission errors by defaulting to demo mode
   useEffect(() => {
@@ -200,31 +184,17 @@ function App() {
     }
   };
 
-  const navigationItems = currentUser
-    ? [
-        { id: 'dashboard' as ViewType, label: 'Dashboard' },
-        { id: 'new-ontology' as ViewType, label: 'Create New' },
-      ]
-    : [
-        { id: 'dashboard' as ViewType, label: 'Dashboard' },
-      ];
+  const navigationItems = [
+    { id: 'dashboard' as ViewType, label: 'Dashboard' },
+    { id: 'use-ontology' as ViewType, label: 'Use Ontology' },
+    { id: 'new-ontology' as ViewType, label: 'Create New' },
+  ];
 
-  // Unified navigation helper - updates both state and URL hash
   const handleViewChange = (view: string, ontologyId?: string) => {
     setCurrentView(view as ViewType);
-    
     if (ontologyId) {
       setSelectedOntologyId(ontologyId);
-      // Update URL hash to reflect the navigation
-      window.location.hash = `ontology-details/${ontologyId}`;
-    } else {
-      // Clear ontology ID if navigating away from detail view
-      if (view !== 'ontology-details' && view !== 'edit-ontology') {
-        setSelectedOntologyId(null);
-      }
-      window.location.hash = view;
     }
-    
     setMobileMenuOpen(false);
   };
 
@@ -236,7 +206,6 @@ function App() {
   const handleLogout = async () => {
     try {
       await authService.signOut();
-      userService.clear();
       setCurrentUser(null);
       setCurrentView('login');
       setSelectedOntologyId(null);
@@ -381,7 +350,9 @@ function App() {
   }
 
   // Show login view if not authenticated
-  // Always render app; unauthenticated users see the dashboard with a Login button
+  if (!currentUser) {
+    return <LoginView onLogin={handleLogin} />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -412,14 +383,7 @@ function App() {
               {navigationItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    if (item.id === 'dashboard') {
-                      const url = `${window.location.pathname}#dashboard`;
-                      window.open(url, 'dashboard');
-                      return;
-                    }
-                    handleViewChange(item.id as ViewType);
-                  }}
+                  onClick={() => handleViewChange(item.id as ViewType)}
                   className={`text-sm font-medium transition-colors duration-200 ${
                     currentView === item.id 
                       ? 'text-blue-600 border-b-2 border-blue-500 pb-1' 
@@ -451,7 +415,7 @@ function App() {
                 <span className="hidden sm:inline">Upload</span>
               </button>
             )}
-            {currentUser ? (
+            {currentUser && (
               <div className="relative">
                 <button
                   onClick={() => setShowSettings(true)}
@@ -472,13 +436,6 @@ function App() {
                   </span>
                 </button>
               </div>
-            ) : (
-              <button
-                onClick={() => setShowLoginModal(true)}
-                className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Log In
-              </button>
             )}
           </div>
         </div>
@@ -490,15 +447,7 @@ function App() {
               {navigationItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    if (item.id === 'dashboard') {
-                      const url = `${window.location.pathname}#dashboard`;
-                      window.open(url, 'dashboard');
-                      setMobileMenuOpen(false);
-                      return;
-                    }
-                    handleViewChange(item.id as ViewType);
-                  }}
+                  onClick={() => handleViewChange(item.id as ViewType)}
                   className={`text-left px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                     currentView === item.id 
                       ? 'text-blue-600 bg-blue-50' 
@@ -532,7 +481,7 @@ function App() {
       {/* Main Content */}
       <main className="min-h-screen">
         {currentView === 'dashboard' && (
-          <DashboardView onNavigate={handleViewChange} />
+          <DashboardView onNavigate={handleViewChange} onOpenSettings={() => setShowSettings(true)} />
         )}
         {currentView === 'use-ontology' && (
           <UseOntologyView onNavigate={handleViewChange} />
@@ -545,32 +494,16 @@ function App() {
             showToastError={showToastErrorMessage}
           />
         )}
-        {/* Edit ontology view removed */}
+        {currentView === 'edit-ontology' && (
+          <EditOntologyView 
+            ontologyId={selectedOntologyId} 
+            onNavigate={handleViewChange} 
+          />
+        )}
         {currentView === 'new-ontology' && (
           <NewOntologyView onNavigate={handleViewChange} />
         )}
       </main>
-
-      {/* Login Modal for unauthenticated users */}
-      {showLoginModal && !currentUser && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-4 relative">
-            <button
-              onClick={() => setShowLoginModal(false)}
-              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-              aria-label="Close"
-            >
-              ✕
-            </button>
-            <LoginView
-              onLogin={(user) => {
-                handleLogin(user);
-                setShowLoginModal(false);
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* User Profile Settings Modal */}
       {showSettings && currentUser && (

@@ -348,7 +348,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                   return (
                   <div
                     key={ontology.id}
-                    onClick={() => onNavigate('ontology-details', ontologyUuid)}
+                    onClick={() => {
+                      const url = `#ontology-details?id=${ontologyUuid}`;
+                      window.open(url, '_blank');
+                    }}
                     className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer"
                   >
                     {/* Thumbnail */}
@@ -422,7 +425,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              onNavigate('ontology-details', ontologyUuid);
+                              const url = `#ontology-details?id=${ontologyUuid}`;
+                              window.open(url, '_blank');
                             }}
                             className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                           >
@@ -431,9 +435,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              // Navigate to edit
-                              console.log('Edit ontology:', ontology.id);
-                              onNavigate('edit-ontology', ontology.id);
+                              const url = `#edit-ontology?id=${ontology.id}`;
+                              window.open(url, '_blank');
                             }}
                             className="text-sm text-green-600 hover:text-green-800 font-medium"
                           >
