@@ -223,7 +223,6 @@ class OntologyService {
 
         return {
           id,
-          name,
           description,
           properties: {
             source_url: sourceUrl,
