@@ -89,7 +89,6 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
           source_url: ontology.properties?.source_url || '',
           image_url: ontology.properties?.image_url || '',
           is_public: !!ontology.properties?.is_public,
-          tags: ontology.properties?.tags || [],
         },
       });
     }
@@ -103,6 +102,8 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       source_url: ontology.properties?.source_url || '',
       image_url: ontology.properties?.image_url || '',
       is_public: !!ontology.properties?.is_public,
+      node_count: ontology.node_count ?? null,
+      relationship_count: ontology.relationship_count ?? null,
     };
     const cur = {
       name: editable.name,
@@ -110,6 +111,8 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       source_url: editable.properties?.source_url || '',
       image_url: editable.properties?.image_url || '',
       is_public: !!editable.properties?.is_public,
+      node_count: editable.node_count ?? null,
+      relationship_count: editable.relationship_count ?? null,
     };
     // Dirty if fields changed or a new image file was chosen
     return JSON.stringify(orig) !== JSON.stringify(cur) || !!selectedImageFile;
@@ -181,8 +184,8 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
         is_public: (
           editable.properties?.is_public ?? ontology.properties?.is_public ?? false
         ),
-        node_count: ontology.node_count ?? null,
-        relationship_count: ontology.relationship_count ?? null,
+        node_count: editable.node_count ?? ontology.node_count ?? null,
+        relationship_count: editable.relationship_count ?? ontology.relationship_count ?? null,
         score: ontology.score ?? null,
         // Keep nested properties for compatibility with other consumers
         properties: {
@@ -280,28 +283,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     );
   }
 
-  // Extract tags from ontology description and properties
-  const extractTags = (ontology: Ontology): string[] => {
-    const tags: string[] = [];
-    
-    // Add tags based on description content
-    const description = ontology.description.toLowerCase();
-    if (description.includes('medical') || description.includes('healthcare')) tags.push('medical');
-    if (description.includes('e-commerce') || description.includes('product')) tags.push('e-commerce');
-    if (description.includes('academic') || description.includes('research')) tags.push('academic');
-    if (description.includes('technology') || description.includes('tech')) tags.push('technology');
-    
-    // Add source-based tags
-    if (ontology.properties?.source_url) {
-      const url = ontology.properties.source_url.toLowerCase();
-      if (url.includes('github')) tags.push('open-source');
-      if (url.includes('owl') || url.includes('rdf')) tags.push('semantic-web');
-    }
-    
-    return tags.length > 0 ? tags : ['general'];
-  };
-
-  const tags = extractTags(ontology);
+  // Tags are supplied by backend per ontology (ontology.tags)
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
@@ -392,9 +374,9 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 </label>
                 <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
                   <div className="flex flex-wrap gap-1">
-                    {tags.map((tag, index) => (
+                    {(ontology.tags || []).map((tag, index) => (
                       <span
-                        key={index}
+                        key={`${tag}-${index}`}
                         className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
                       >
                         {tag}
@@ -445,27 +427,41 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 </div>
               </div>
 
-              {ontology.node_count && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nodes
-                  </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nodes
+                </label>
+                {canEdit ? (
+                  <input
+                    type="number"
+                    value={editable?.node_count ?? ontology.node_count ?? 0}
+                    onChange={(e) => setEditable(prev => prev ? { ...prev, node_count: Number(e.target.value) } as any : prev)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900"
+                  />
+                ) : (
                   <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                    {ontology.node_count.toLocaleString()}
+                    {(editable?.node_count ?? ontology.node_count ?? 0).toLocaleString()}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {ontology.relationship_count && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Relationships
-                  </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Relationships
+                </label>
+                {canEdit ? (
+                  <input
+                    type="number"
+                    value={editable?.relationship_count ?? ontology.relationship_count ?? 0}
+                    onChange={(e) => setEditable(prev => prev ? { ...prev, relationship_count: Number(e.target.value) } as any : prev)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900"
+                  />
+                ) : (
                   <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                    {ontology.relationship_count.toLocaleString()}
+                    {(editable?.relationship_count ?? ontology.relationship_count ?? 0).toLocaleString()}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
               
               {/* Buttons */}
               <div className="flex gap-3 justify-end pt-4">

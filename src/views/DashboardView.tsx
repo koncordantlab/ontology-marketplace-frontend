@@ -64,8 +64,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     // Apply tag filters
     if (selectedTags.length > 0) {
       filtered = filtered.filter(ontology => {
-        const ontologyTags = extractTagsFromOntology(ontology);
-        return selectedTags.some(tag => ontologyTags.includes(tag));
+        const ontologyTags = ontology.tags || [];
+        return selectedTags.some((tag: string) => ontologyTags.includes(tag));
       });
     }
 
@@ -91,27 +91,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     }
   };
 
-  // Extract tags from ontology (you can customize this based on your data structure)
-  const extractTagsFromOntology = (ontology: Ontology): string[] => {
-    const tags: string[] = [];
-    
-    // Add tags based on ontology properties
-    if (ontology.properties?.source_url) {
-      if (ontology.properties.source_url.includes('medical')) tags.push('Medical');
-      if (ontology.properties.source_url.includes('ecommerce')) tags.push('E-commerce');
-      if (ontology.properties.source_url.includes('academic')) tags.push('Academic');
-      if (ontology.properties.source_url.includes('research')) tags.push('Research');
-    }
-    
-    // Add tags based on ontology name/description
-    const text = `${ontology.name} ${ontology.description}`.toLowerCase();
-    if (text.includes('medical') || text.includes('healthcare')) tags.push('Medical');
-    if (text.includes('ecommerce') || text.includes('retail')) tags.push('E-commerce');
-    if (text.includes('academic') || text.includes('research')) tags.push('Academic');
-    if (text.includes('research') || text.includes('publication')) tags.push('Research');
-    
-    return [...new Set(tags)]; // Remove duplicates
-  };
+  // Tags now provided by backend per ontology; no local heuristics.
 
   // Generate categories dynamically
   const categories: Category[] = [
@@ -152,8 +132,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     const tagCounts: { [key: string]: number } = {};
     
     ontologies.forEach(ontology => {
-      const tags = extractTagsFromOntology(ontology);
-      tags.forEach(tag => {
+      const tags = ontology.tags || [];
+      tags.forEach((tag: string) => {
         tagCounts[tag] = (tagCounts[tag] || 0) + 1;
       });
     });
@@ -379,7 +359,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                       
                       {/* Tags */}
                       <div className="flex flex-wrap gap-1 mt-3">
-                        {extractTagsFromOntology(ontology).slice(0, 3).map((tag) => (
+                        {(ontology.tags || []).slice(0, 3).map((tag: string) => (
                           <span
                             key={tag}
                             className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
@@ -387,9 +367,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                             {tag}
                           </span>
                         ))}
-                        {extractTagsFromOntology(ontology).length > 3 && (
+                        {(ontology.tags || []).length > 3 && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                            +{extractTagsFromOntology(ontology).length - 3}
+                            +{(ontology.tags || []).length - 3}
                           </span>
                         )}
                       </div>
