@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { CommentSystem } from '../components/CommentSystem';
 import { ontologyService, Ontology } from '../services/ontologyService';
+import { BackendApiClient } from '../config/backendApi';
+import { cloudinaryService } from '../services/cloudinaryService';
 
 interface OntologyDetailsViewProps {
   ontologyId: string | null;
@@ -14,6 +16,9 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [ontology, setOntology] = useState<Ontology | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [canEdit, setCanEdit] = useState(false);
+  const [editable, setEditable] = useState<Ontology | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const fetchOntology = async () => {
@@ -48,16 +53,116 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     fetchOntology();
   }, [ontologyId]);
 
+  // Check edit permission
+  useEffect(() => {
+    const checkPermission = async () => {
+      try {
+        if (!ontologyId) return;
+        const ontologyUuid = (ontology && (ontology as any).uuid) || ontologyId;
+        const resp: any = await BackendApiClient.request(`/can_edit_ontology/${ontologyUuid}`, {
+          method: 'GET',
+        });
+        setCanEdit(!!resp?.success);
+      } catch (e) {
+        setCanEdit(false);
+      }
+    };
+    checkPermission();
+  }, [ontologyId, ontology]);
+
+  // Initialize editable copy when ontology loads
+  useEffect(() => {
+    if (ontology) {
+      setEditable({
+        ...ontology,
+        properties: {
+          source_url: ontology.properties?.source_url || '',
+          image_url: ontology.properties?.image_url || '',
+          is_public: !!ontology.properties?.is_public,
+          tags: ontology.properties?.tags || [],
+        },
+      });
+    }
+  }, [ontology]);
+
+  const isDirty = useMemo(() => {
+    if (!ontology || !editable) return false;
+    const orig = {
+      name: ontology.name,
+      description: ontology.description,
+      source_url: ontology.properties?.source_url || '',
+      image_url: ontology.properties?.image_url || '',
+      is_public: !!ontology.properties?.is_public,
+    };
+    const cur = {
+      name: editable.name,
+      description: editable.description,
+      source_url: editable.properties?.source_url || '',
+      image_url: editable.properties?.image_url || '',
+      is_public: !!editable.properties?.is_public,
+    };
+    return JSON.stringify(orig) !== JSON.stringify(cur);
+  }, [ontology, editable]);
+
+  const handleFieldChange = (field: 'name' | 'description', value: string) => {
+    if (!editable) return;
+    setEditable({ ...editable, [field]: value });
+  };
+
+  const handlePropChange = (field: 'source_url' | 'image_url' | 'is_public', value: string | boolean) => {
+    if (!editable) return;
+    setEditable({
+      ...editable,
+      properties: {
+        ...editable.properties,
+        [field]: value as any,
+      },
+    });
+  };
+
+  const handleImageSelect = async (file: File) => {
+    if (!file) return;
+    const res = await cloudinaryService.uploadImage(file, { preset: undefined });
+    if (res.success && res.url) {
+      handlePropChange('image_url', res.url);
+    } else {
+      console.error('Image upload failed:', res.error);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editable || !ontology?.id) return;
+    setIsSaving(true);
+    try {
+      const updates: Partial<Ontology> = {
+        name: editable.name,
+        description: editable.description,
+        properties: {
+          source_url: editable.properties?.source_url || '',
+          image_url: editable.properties?.image_url || '',
+          is_public: !!editable.properties?.is_public,
+        },
+      } as any;
+      const result = await BackendApiClient.updateOntology(ontology.id, updates);
+      if ((result as any)?.success === false) {
+        throw new Error((result as any)?.error || 'Failed to update ontology');
+      }
+      // Refresh local state
+      setOntology({ ...editable, id: ontology.id });
+    } catch (e) {
+      console.error('Save failed:', e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleUpload = () => {
     console.log('Uploading ontology to database:', ontologyId);
     // Navigate to use ontology view for database upload
     onNavigate('use-ontology', ontologyId || undefined);
   };
 
-  const handleEdit = () => {
-    const url = `#edit-ontology?id=${ontologyId}`;
-    window.open(url, '_blank');
-  };
+  // Deprecated: Editing now happens inline via Save
 
   if (loading) {
     return (
@@ -118,15 +223,28 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
           <h2 className="text-lg font-semibold text-gray-900 mb-6"></h2>
           
           {/* Image between DETAILS title and Title field */}
-          {ontology.properties?.image_url && (
-            <div className="mb-6 max-h-48 flex items-center justify-center">
+          <div className="mb-6 max-h-48 flex items-center justify-center">
+            {editable?.properties?.image_url ? (
               <img 
-                src={ontology.properties.image_url} 
-                alt={ontology.name}
+                src={editable.properties.image_url} 
+                alt={editable.name}
                 className="w-full h-full max-h-48 object-contain rounded-lg"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                 }}
+              />
+            ) : null}
+          </div>
+          {canEdit && (
+            <div className="mb-6">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImageSelect(file);
+                }}
+                className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
               />
             </div>
           )}
@@ -136,18 +254,26 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Title
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                  {ontology.name}
-                </div>
+                <input
+                  type="text"
+                  value={editable?.name || ''}
+                  onChange={(e) => handleFieldChange('name', e.target.value)}
+                  disabled={!canEdit}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 disabled:bg-gray-100"
+                />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Description
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 min-h-[100px]">
-                  {ontology.description}
-                </div>
+                <textarea
+                  rows={4}
+                  value={editable?.description || ''}
+                  onChange={(e) => handleFieldChange('description', e.target.value)}
+                  disabled={!canEdit}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 disabled:bg-gray-100"
+                />
               </div>
               
               <div>
@@ -172,34 +298,33 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Status
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    ontology.properties?.is_public 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {ontology.properties?.is_public ? 'Public' : 'Private'}
-                  </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="is_public"
+                    type="checkbox"
+                    checked={!!editable?.properties?.is_public}
+                    onChange={(e) => handlePropChange('is_public', e.target.checked)}
+                    disabled={!canEdit}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  />
+                  <label htmlFor="is_public" className="text-sm text-gray-700">
+                    Public
+                  </label>
                 </div>
               </div>
 
-              {ontology.properties?.source_url && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Source URL
-                  </label>
-                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                    <a 
-                      href={ontology.properties.source_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 break-all"
-                    >
-                      {ontology.properties.source_url}
-                    </a>
-                  </div>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Source URL
+                </label>
+                <input
+                  type="url"
+                  value={editable?.properties?.source_url || ''}
+                  onChange={(e) => handlePropChange('source_url', e.target.value)}
+                  disabled={!canEdit}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 disabled:bg-gray-100"
+                />
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -235,10 +360,15 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
               {/* Buttons */}
               <div className="flex gap-3 justify-end pt-4">
                 <button
-                  onClick={handleEdit}
-                  className="px-8 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+                  onClick={handleSave}
+                  disabled={!canEdit || !isDirty || isSaving}
+                  className={`px-8 py-3 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 ${
+                    !canEdit || !isDirty || isSaving
+                      ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
                 >
-                  EDIT
+                  {isSaving ? 'SAVING...' : 'SAVE'}
                 </button>
                 <button
                   onClick={handleUpload}

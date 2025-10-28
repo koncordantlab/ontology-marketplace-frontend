@@ -139,33 +139,13 @@ class CloudinaryService {
   }
 
 
-  async generateAndUploadThumbnail(elementRef: HTMLElement, filename: string = 'ontology-thumbnail'): Promise<CloudinaryUploadResponse> {
-    try {
-      const { toPng } = await import('html-to-image');
-      
-
-      
-      const dataUrl = await toPng(elementRef, {
-        quality: 0.8,
-        width: 400,
-        height: 300,
-        style: {
-          transform: 'scale(1)',
-          transformOrigin: 'top left'
-        }
-      });
-
-
-      
-      return await this.uploadDataUrl(dataUrl, filename);
-    } catch (error) {
-      console.error('Error generating thumbnail:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Thumbnail generation failed'
-      };
-    }
-  }
+  // Removed generateAndUploadThumbnail - requires html-to-image package
+  // Uncomment and install html-to-image if needed:
+  // async generateAndUploadThumbnail(elementRef: HTMLElement, filename: string = 'ontology-thumbnail'): Promise<CloudinaryUploadResponse> {
+  //   const { toPng } = await import('html-to-image');
+  //   const dataUrl = await toPng(elementRef, { quality: 0.8 });
+  //   return await this.uploadDataUrl(dataUrl, filename);
+  // }
 
 
   async deleteImage(publicId: string): Promise<boolean> {
