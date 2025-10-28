@@ -430,17 +430,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                           >
                             View
                           </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const url = `#edit-ontology?id=${ontology.id}`;
-                              const target = `ontology-${ontology.id}`;
-                              window.open(url, target);
-                            }}
-                            className="text-sm text-green-600 hover:text-green-800 font-medium"
-                          >
-                            Edit
-                          </button>
                         </div>
                       </div>
                     </div>

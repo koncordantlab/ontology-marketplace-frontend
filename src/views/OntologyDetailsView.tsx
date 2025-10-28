@@ -445,28 +445,27 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
             </div>
         </div>
 
-        {/* Comments Section - Full Width Below */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mt-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">COMMENTS</h2>
-          </div>
-          
-          <CommentSystem />
-          
-          {/* Add Comment Form */}
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <textarea
-              placeholder="Add a comment..."
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none text-sm"
-            />
-            <div className="mt-2 flex justify-end">
-              <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
-                Post Comment
-              </button>
+        {/* Comments Section - hidden/disabled */}
+        {false && (
+          <div className="bg-white rounded-lg shadow-sm border p-6 mt-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-gray-900">COMMENTS</h2>
+            </div>
+            <CommentSystem />
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <textarea
+                placeholder="Add a comment..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none text-sm"
+              />
+              <div className="mt-2 flex justify-end">
+                <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
+                  Post Comment
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
