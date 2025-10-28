@@ -27,6 +27,11 @@ export const BACKEND_API = {
     VALIDATE_URL: '/api/ontologies/validate-url',
     ONTOLOGY: '/upload_ontology',
   },
+
+  // Tags endpoints
+  TAGS: {
+    LIST: '/get_tags',
+  },
   
   // Database endpoints
   DATABASE: {
@@ -276,6 +281,13 @@ export class BackendApiClient {
    */
   static async getNeo4jDatabaseInfo() {
     return this.request(BACKEND_API.NEO4J.DATABASE_INFO);
+  }
+
+  /**
+   * Get list of available tags from backend
+   */
+  static async getTags(): Promise<string[]> {
+    return this.request(BACKEND_API.TAGS.LIST, { method: 'GET' });
   }
 }
 
