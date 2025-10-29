@@ -189,9 +189,10 @@ export class BackendApiClient {
    * Delete ontology
    */
   static async deleteOntology(id: string) {
+    // The backend expects a DELETE with a list of UUIDs in the body
     return this.request(BACKEND_API.ONTOLOGIES.DELETE(id), {
       method: 'DELETE',
-      body: { id }, // Include id in the body for the gateway
+      body: [id],
     });
   }
 
