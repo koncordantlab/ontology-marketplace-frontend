@@ -65,7 +65,7 @@ class UserService {
   async updateUser(isPublic: boolean): Promise<void> {
     try {
       await BackendApiClient.request('/update_user', {
-        method: 'POST',
+        method: 'PUT',
         body: { is_public: isPublic },
       });
       

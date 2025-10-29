@@ -16,7 +16,7 @@ export const BACKEND_API = {
     LIST: '/search_ontologies',
     GET_BY_ID: (_id: string) => `/api/ontologies/${_id}`,
     CREATE: '/add_ontologies',
-    UPDATE: '/update_ontologies',
+    UPDATE: (_id: string) => `/update_ontology/${_id}`,
     DELETE: (_id: string) => `/delete_ontologies`,
     SEARCH: '/search_ontologies',
   },
@@ -177,11 +177,10 @@ export class BackendApiClient {
    * Update ontology
    */
   static async updateOntology(id: string, data: any) {
-    // The backend expects a list of payload objects for bulk update
-    const payloadArray = [{ ...data, id }];
-    return this.request(BACKEND_API.ONTOLOGIES.UPDATE, {
-      method: 'POST',
-      body: payloadArray,
+    // Use PUT to update a single ontology by id with a flat payload
+    return this.request(BACKEND_API.ONTOLOGIES.UPDATE(id), {
+      method: 'PUT',
+      body: { ...data, id },
     });
   }
 

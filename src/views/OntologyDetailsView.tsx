@@ -21,6 +21,8 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [canEdit, setCanEdit] = useState(false);
   const [editable, setEditable] = useState<Ontology | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<string | null>(null);
@@ -184,6 +186,8 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const handleSave = async () => {
     if (!editable || !ontology?.id) return;
     setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
     try {
       // Get the ontology UUID (same logic as in checkPermission)
       const ontologyUuid = (ontology as any).uuid || ontology.id;
@@ -229,8 +233,13 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       setOntology({ ...editable, id: ontology.id, properties: { ...editable.properties, image_url: imageUrlToSave } });
       // Clear selected image state after successful save
       clearSelectedImage();
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
     } catch (e) {
       console.error('Save failed:', e);
+      const msg = e instanceof Error ? e.message : 'Failed to update ontology';
+      setSaveError(msg);
+      setTimeout(() => setSaveError(null), 4000);
     } finally {
       setIsSaving(false);
     }
@@ -576,6 +585,18 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 )}
               </div>
               
+              {/* Success/Error Messages */}
+              {saveSuccess && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md text-sm text-green-800">
+                  Ontology updated successfully.
+                </div>
+              )}
+              {saveError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+                  {saveError}
+                </div>
+              )}
+
               {/* Buttons */}
               <div className="flex items-center justify-between pt-4">
                 <div>
