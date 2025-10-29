@@ -478,56 +478,74 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                           </span>
                         </div>
                         <div className="flex items-center space-x-2 ml-4">
-                          {selectedCategory === 'deleted' ? (
-                            // Show restore and permanent delete for deleted items
-                            <>
-                              <button
-                                onClick={() => handleRestoreOntology(ontology.id!, ontology.name)}
-                                className="text-sm text-green-600 hover:text-green-800 font-medium"
-                                title="Restore from trash"
-                              >
-                                Restore
-                              </button>
-                              <button
-                                onClick={() => handleDeleteOntology(ontology.id!, ontology.name, true)}
-                                className="text-sm text-red-600 hover:text-red-800 font-medium"
-                                title="Permanently delete"
-                              >
-                                Delete Forever
-                              </button>
-                            </>
-                          ) : (
-                            // Show regular actions for non-deleted items
-                            <>
-                              <button
-                                onClick={() => {
-                                  // Navigate to view/edit
-                                  console.log('View/Edit ontology:', ontology.id);
-                                  onNavigate('ontology-details', ontology.id);
-                                }}
-                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                              >
-                                View
-                              </button>
-                              <button
-                                onClick={() => {
-                                  // Navigate to edit
-                                  console.log('Edit ontology:', ontology.id);
-                                  onNavigate('edit-ontology', ontology.id);
-                                }}
-                                className="text-sm text-green-600 hover:text-green-800 font-medium"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteOntology(ontology.id!, ontology.name, false)}
-                                className="text-sm text-red-600 hover:text-red-800 font-medium"
-                                title="Move to trash"
-                              >
-                                Delete
-                              </button>
-                            </>
-                          )}
+                          {/* Check if user owns this ontology */}
+                          {(() => {
+                            // Use the is_owner flag from backend
+                            const isOwner = ontology.is_owner ?? false;
+
+                            if (selectedCategory === 'deleted' && isOwner) {
+                              // Show restore and permanent delete for deleted items owned by user
+                              return (
+                                <>
+                                  <button
+                                    onClick={() => handleRestoreOntology(ontology.id!, ontology.name)}
+                                    className="text-sm text-green-600 hover:text-green-800 font-medium"
+                                    title="Restore from trash"
+                                  >
+                                    Restore
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteOntology(ontology.id!, ontology.name, true)}
+                                    className="text-sm text-red-600 hover:text-red-800 font-medium"
+                                    title="Permanently delete"
+                                  >
+                                    Delete Forever
+                                  </button>
+                                </>
+                              );
+                            } else if (selectedCategory !== 'deleted') {
+                              // Show regular actions for non-deleted items
+                              return (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      console.log('View ontology:', ontology.id);
+                                      onNavigate('ontology-details', ontology.id);
+                                    }}
+                                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                  >
+                                    View
+                                  </button>
+                                  {isOwner && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          console.log('Edit ontology:', ontology.id);
+                                          onNavigate('edit-ontology', ontology.id);
+                                        }}
+                                        className="text-sm text-green-600 hover:text-green-800 font-medium"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteOntology(ontology.id!, ontology.name, false)}
+                                        className="text-sm text-red-600 hover:text-red-800 font-medium"
+                                        title="Move to trash"
+                                      >
+                                        Delete
+                                      </button>
+                                    </>
+                                  )}
+                                  {!isOwner && (
+                                    <span className="text-xs text-gray-400 italic ml-2">
+                                      Read-only
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            }
+                            return null;
+                          })()}
                         </div>
                       </div>
                     </div>

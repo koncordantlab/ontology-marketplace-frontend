@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, XCircle, AlertCircle, Loader2, Database, ArrowRight } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 export type ConversionState = 'idle' | 'converting' | 'success' | 'error';
 
@@ -24,10 +24,6 @@ export const ConversionStatus: React.FC<ConversionStatusProps> = ({
   onClose
 }) => {
   if (state === 'idle') return null;
-
-  const getBrowserUrl = (uri: string) => {
-    return uri.replace('bolt://', 'http://').replace(':7687', ':7474');
-  };
 
   return (
     <div className={`mt-4 rounded-lg border p-4 transition-all duration-300 ${
@@ -121,21 +117,11 @@ export const ConversionStatus: React.FC<ConversionStatusProps> = ({
             </div>
           )}
 
-          {/* Neo4j Browser Link for success */}
+          {/* Neo4j URI display for success */}
           {state === 'success' && neo4jUri && (
             <div className="mt-4">
-              <a
-                href={getBrowserUrl(neo4jUri)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center space-x-2 text-sm bg-white px-4 py-2 rounded-md border border-green-300 text-green-700 hover:bg-green-50 transition-colors"
-              >
-                <Database className="h-4 w-4" />
-                <span>Open Neo4j Browser</span>
-                <ArrowRight className="h-4 w-4" />
-              </a>
-              <p className="mt-2 text-xs text-gray-600">
-                View your ontology graph at: {getBrowserUrl(neo4jUri)}
+              <p className="text-xs text-gray-600">
+                View your ontology graph at: {neo4jUri}
               </p>
             </div>
           )}

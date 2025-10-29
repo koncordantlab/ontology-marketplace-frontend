@@ -18,6 +18,7 @@ export interface Ontology {
   relationship_count?: number;
   file_url?: string;
   uid?: string;
+  is_owner?: boolean;
 }
 
 export interface OntologyResponse {
@@ -177,14 +178,15 @@ class OntologyService {
             image_url: ontology.image_url || ontology.properties?.image_url || '',
             is_public: ontology.is_public ?? ontology.properties?.is_public ?? false
           },
-          ownerId: ontology.ownerId || ontology.uid || '',
+          ownerId: ontology.owner_id || ontology.ownerId || ontology.uid || '',
           createdAt: parseDate(ontology.createdAt || ontology.created_time),
           updatedAt: parseDate(ontology.updatedAt || ontology.createdAt || ontology.created_time),
           // Preserve additional fields
           node_count: ontology.node_count,
           relationship_count: ontology.relationship_count,
           file_url: ontology.file_url,
-          uid: ontology.uid
+          uid: ontology.uid,
+          is_owner: ontology.is_owner ?? false
         };
       });
 
@@ -795,13 +797,14 @@ class OntologyService {
             image_url: ontology.image_url || '',
             is_public: ontology.is_public ?? false
           },
-          ownerId: ontology.ownerId || ontology.uid || '',
+          ownerId: ontology.owner_id || ontology.ownerId || ontology.uid || '',
           createdAt: parseDate(ontology.createdAt || ontology.created_time),
           updatedAt: parseDate(ontology.updatedAt),
           node_count: ontology.node_count,
           relationship_count: ontology.relationship_count,
           file_url: ontology.file_url,
-          uid: ontology.uid
+          uid: ontology.uid,
+          is_owner: ontology.is_owner ?? false
         };
       });
 

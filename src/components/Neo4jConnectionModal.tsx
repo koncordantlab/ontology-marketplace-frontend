@@ -24,11 +24,11 @@ export const Neo4jConnectionModal: React.FC<Neo4jConnectionModalProps> = ({
   isLoading
 }) => {
   const [credentials, setCredentials] = useState<Neo4jCredentials>({
-    uri: 'bolt://localhost:7687',
+    uri: 'neo4j+s://',
     username: 'neo4j',
     password: '',
     rootLabel: '',
-    clearExisting: true
+    clearExisting: false
   });
 
   const [testingConnection, setTestingConnection] = useState(false);
@@ -99,7 +99,7 @@ export const Neo4jConnectionModal: React.FC<Neo4jConnectionModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Connect to Local Neo4j</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Connect to Neo4j Aura</h2>
           <button
             onClick={() => {
               resetModal();
@@ -115,7 +115,7 @@ export const Neo4jConnectionModal: React.FC<Neo4jConnectionModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Neo4j URI
+              Aura Instance URI
             </label>
             <input
               type="text"
@@ -125,11 +125,11 @@ export const Neo4jConnectionModal: React.FC<Neo4jConnectionModalProps> = ({
                 setConnectionStatus({ tested: false, success: false, message: '' });
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="bolt://localhost:7687"
+              placeholder="neo4j+s://xxxxxxxx.databases.neo4j.io"
               disabled={isLoading || testingConnection}
             />
             <p className="mt-1 text-xs text-gray-500">
-              The connection URI for your local Neo4j database
+              Your Neo4j Aura instance URI (found in your Aura console under Connection URI)
             </p>
           </div>
 
@@ -203,9 +203,9 @@ export const Neo4jConnectionModal: React.FC<Neo4jConnectionModalProps> = ({
                     <div className="mt-2 text-xs">
                       <strong>Troubleshooting:</strong>
                       <ul className="list-disc pl-5 mt-1 space-y-1">
-                        <li>Ensure Neo4j Desktop or Server is running</li>
-                        <li>Check if the bolt protocol is enabled (default port: 7687)</li>
-                        <li>Verify firewall settings allow connections</li>
+                        <li>Ensure your Aura instance is active (not paused)</li>
+                        <li>Verify the connection URI is correct</li>
+                        <li>Check if your Aura instance is in the correct region</li>
                       </ul>
                     </div>
                   )}
@@ -213,9 +213,9 @@ export const Neo4jConnectionModal: React.FC<Neo4jConnectionModalProps> = ({
                     <div className="mt-2 text-xs">
                       <strong>Troubleshooting:</strong>
                       <ul className="list-disc pl-5 mt-1 space-y-1">
-                        <li>Verify your Neo4j username and password</li>
-                        <li>Default username is usually 'neo4j'</li>
-                        <li>You may need to reset the password in Neo4j Desktop</li>
+                        <li>Verify your Aura username and password</li>
+                        <li>Check credentials in your Aura console</li>
+                        <li>Ensure you're using the correct instance credentials</li>
                       </ul>
                     </div>
                   )}
@@ -263,12 +263,13 @@ export const Neo4jConnectionModal: React.FC<Neo4jConnectionModalProps> = ({
               <div className="text-sm text-amber-800">
                 <strong>Important:</strong>
                 <ul className="list-disc pl-5 mt-1 space-y-1">
-                  <li>Neo4j must be running locally before conversion</li>
+                  <li>Your Aura instance must be active (not paused)</li>
                   <li>Large ontologies may take several minutes to process</li>
-                  <li>The conversion will download and parse the ontology file</li>
+                  <li>The conversion will import data directly to your Aura database</li>
+                  <li>Make sure your Aura instance has enough storage space</li>
                   {credentials.clearExisting && (
                     <li className="text-red-700 font-medium">
-                      Warning: This will DELETE all existing data in your Neo4j database!
+                      Warning: This will DELETE all existing data in your Aura database!
                     </li>
                   )}
                 </ul>

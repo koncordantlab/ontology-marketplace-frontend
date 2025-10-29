@@ -237,13 +237,29 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 </div>
               )}
               
-              <div className="flex flex-col space-y-3 pt-4">                
-                <button
-                  onClick={handleEdit}
-                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-                >
-                  EDIT
-                </button>
+              <div className="flex flex-col space-y-3 pt-4">
+                {/* Check if user owns this ontology */}
+                {(() => {
+                  // Use the is_owner flag from backend
+                  const isOwner = ontology?.is_owner ?? false;
+
+                  if (isOwner) {
+                    return (
+                      <button
+                        onClick={handleEdit}
+                        className="w-full bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+                      >
+                        EDIT
+                      </button>
+                    );
+                  } else {
+                    return (
+                      <div className="text-center text-sm text-gray-500 italic py-2">
+                        You can only edit ontologies you created
+                      </div>
+                    );
+                  }
+                })()}
               </div>
             </div>
           </div>
