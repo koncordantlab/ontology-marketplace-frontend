@@ -12,7 +12,8 @@ interface OntologyDetailsViewProps {
 }
 
 export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
-  ontologyId
+  ontologyId,
+  onNavigate
 }) => {
   const [ontology, setOntology] = useState<Ontology | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +21,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [canEdit, setCanEdit] = useState(false);
   const [editable, setEditable] = useState<Ontology | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +40,8 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   // Tag dialog state
   const [showTagDialog, setShowTagDialog] = useState(false);
   const [selectedDialogTags, setSelectedDialogTags] = useState<string[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
 
   useEffect(() => {
     const fetchOntology = async () => {
@@ -84,13 +88,17 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     // Check from cache (no network call)
     const canEditResult = userService.canEdit(ontologyUuid);
     setCanEdit(canEditResult);
+    const canDeleteResult = userService.canDelete(ontologyUuid);
+    setCanDelete(canDeleteResult);
     
     // Refresh cache if stale (background refresh, doesn't block UI)
     if (userService.isStale()) {
       userService.refresh().then(() => {
         // Re-check after refresh
-        const refreshedResult = userService.canEdit(ontologyUuid);
-        setCanEdit(refreshedResult);
+        const refreshedEdit = userService.canEdit(ontologyUuid);
+        setCanEdit(refreshedEdit);
+        const refreshedDelete = userService.canDelete(ontologyUuid);
+        setCanDelete(refreshedDelete);
       }).catch((error) => {
         console.error('Failed to refresh user account:', error);
       });
@@ -230,6 +238,28 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
 
   const handleUpload = () => {
     setShowUploadDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!ontology) return;
+    const ontologyUuid = (ontology as any).uuid || ontology.id;
+    if (!ontologyUuid) return;
+    setIsDeleting(true);
+    try {
+      await BackendApiClient.deleteOntology(ontologyUuid);
+      alert('Ontology deleted successfully.');
+      // After deletion, navigate back to dashboard if handler provided
+      if (typeof (typeof onNavigate !== 'undefined' && onNavigate) === 'function') {
+        // @ts-ignore - onNavigate is optional in props
+        onNavigate && onNavigate('dashboard');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete ontology');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
   };
 
   const handleDialogCancel = () => {
@@ -547,7 +577,18 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
               </div>
               
               {/* Buttons */}
-              <div className="flex gap-3 justify-end pt-4">
+              <div className="flex items-center justify-between pt-4">
+                <div>
+                  {canDelete && (
+                    <button
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="px-8 py-3 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200"
+                    >
+                      DELETE
+                    </button>
+                  )}
+                </div>
+                <div className="flex gap-3">
                 <button
                   onClick={handleSave}
                   disabled={!canEdit || !isDirty || isSaving}
@@ -565,6 +606,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 >
                   UPLOAD TO DATABASE
                 </button>
+                </div>
               </div>
             </div>
         </div>
@@ -662,6 +704,34 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                   className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
                 >
                   {isUploading ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {showDeleteDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4 text-red-700">Confirm Deletion</h2>
+              <p className="text-sm text-gray-700 mb-4">
+                This action cannot be undone. Are you sure you want to permanently delete this ontology?
+              </p>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowDeleteDialog(false)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting...' : 'Yes, Delete'}
                 </button>
               </div>
             </div>
