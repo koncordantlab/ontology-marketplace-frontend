@@ -590,6 +590,18 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 </div>
               )}
               
+              {/* Success/Error Messages */}
+              {saveSuccess && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md text-sm text-green-800">
+                  Ontology updated successfully.
+                </div>
+              )}
+              {saveError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+                  {saveError}
+                </div>
+              )}
+
               {/* Buttons */}
               <div className="flex gap-3 justify-end pt-4">
                 <button
