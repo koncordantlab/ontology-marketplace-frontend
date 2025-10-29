@@ -36,6 +36,7 @@ export const BACKEND_API = {
   // User endpoints
   USER: {
     GET: '/get_user',
+    UPDATE: '/update_user',
   },
   
   // Database endpoints

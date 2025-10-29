@@ -481,7 +481,7 @@ function App() {
       {/* Main Content */}
       <main className="min-h-screen">
         {currentView === 'dashboard' && (
-          <DashboardView onNavigate={handleViewChange} onOpenSettings={() => setShowSettings(true)} />
+          <DashboardView onNavigate={handleViewChange} />
         )}
         {currentView === 'use-ontology' && (
           <UseOntologyView onNavigate={handleViewChange} />
