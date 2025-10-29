@@ -1,14 +1,12 @@
 /**
  * Service to manage user account data and permissions
- * Fetches user profile and editable ontology IDs from /get_user endpoint
+ * Fetches backend user preferences and permissions from /get_user endpoint
+ * Note: Profile data (name, email, photoURL) is managed by Firebase Auth
  */
 
 import { BackendApiClient } from '../config/backendApi';
 
 export interface UserAccount {
-  name: string;
-  email: string;
-  image_url?: string;
   is_public: boolean;
   permissions: {
     can_edit_ontologies: string[];
@@ -17,9 +15,6 @@ export interface UserAccount {
 }
 
 export interface UserAccountResponse {
-  name: string;
-  email: string;
-  image_url?: string;
   is_public: boolean;
   permissions: {
     can_edit_ontologies: string[];
@@ -36,7 +31,7 @@ class UserService {
   private fetchPromise: Promise<UserAccount | null> | null = null;
 
   /**
-   * Fetch user account data from backend
+   * Fetch user account data from backend (only is_public and permissions)
    */
   private async fetchUserAccount(): Promise<UserAccount | null> {
     try {
@@ -46,9 +41,6 @@ class UserService {
       
       // Normalize the response
       const account: UserAccount = {
-        name: response.name || '',
-        email: response.email || '',
-        image_url: response.image_url,
         is_public: response.is_public ?? false,
         permissions: {
           can_edit_ontologies: Array.isArray(response.permissions?.can_edit_ontologies)
@@ -64,6 +56,26 @@ class UserService {
     } catch (error) {
       console.error('Failed to fetch user account:', error);
       return null;
+    }
+  }
+
+  /**
+   * Update user preferences on backend
+   */
+  async updateUser(isPublic: boolean): Promise<void> {
+    try {
+      await BackendApiClient.request('/update_user', {
+        method: 'POST',
+        body: { is_public: isPublic },
+      });
+      
+      // Update local cache
+      if (this.userAccount) {
+        this.userAccount.is_public = isPublic;
+      }
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      throw error;
     }
   }
 

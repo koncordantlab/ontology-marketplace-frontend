@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Settings, Eye, EyeOff, FileText, Tag } from 'lucide-react';
+import { Search, Plus, Eye, EyeOff, FileText, Tag } from 'lucide-react';
 import { ontologyService, Ontology } from '../services/ontologyService';
 import { authService } from '../services/authService';
 
 interface DashboardViewProps {
   onNavigate: (view: string, id?: string) => void;
-  onOpenSettings?: () => void;
 }
 
 interface Category {
@@ -20,7 +19,7 @@ interface Tag {
   color: string;
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenSettings }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const [ontologies, setOntologies] = useState<Ontology[]>([]);
   const [filteredOntologies, setFilteredOntologies] = useState<Ontology[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -212,13 +211,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
               </p>
             </div>
           </div>
-                     <button
-             onClick={onOpenSettings}
-             className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-           >
-             <Settings className="h-4 w-4" />
-             <span>Settings</span>
-           </button>
         </div>
 
         <div className="flex space-x-8">

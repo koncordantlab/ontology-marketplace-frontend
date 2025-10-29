@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Menu, X, LogOut, Settings } from 'lucide-react';
+import { User, Menu, X } from 'lucide-react';
 import { UseOntologyView } from './views/UseOntologyView';
 import { OntologyDetailsView } from './views/OntologyDetailsView';
 // import { EditOntologyView } from './views/EditOntologyView';
@@ -245,11 +245,12 @@ function App() {
           </div>
           
           <div className="flex items-center space-x-4">
-            {/* User menu */}
+            {/* User menu (click opens Account Settings) */}
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setShowSettings(true)}
                 className="flex items-center space-x-2 p-2 rounded-full border border-gray-300 hover:bg-gray-50 transition-colors duration-200"
+                title="Account Settings"
               >
                 {currentUser.photoURL ? (
                   <img
@@ -265,24 +266,6 @@ function App() {
                 </span>
               </button>
             </div>
-            
-            {/* Settings button */}
-            <button
-              onClick={() => setShowSettings(true)}
-              className="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors duration-200"
-              title="Account Settings"
-            >
-              <Settings className="h-5 w-5" />
-            </button>
-            
-            {/* Logout button */}
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors duration-200"
-              title="Logout"
-            >
-              <LogOut className="h-5 w-5" />
-            </button>
           </div>
         </div>
 
@@ -303,20 +286,7 @@ function App() {
                   {item.label}
                 </button>
               ))}
-              <div className="border-t border-gray-200 pt-2 mt-2">
-                <button
-                  onClick={() => setShowSettings(true)}
-                  className="w-full text-left px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 transition-colors duration-200"
-                >
-                  Account Settings
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors duration-200"
-                >
-                  Logout
-                </button>
-              </div>
+              <div className="border-t border-gray-200 pt-2 mt-2"></div>
             </nav>
           </div>
         )}
@@ -325,7 +295,7 @@ function App() {
       {/* Main Content */}
       <main className="min-h-screen">
         {currentView === 'dashboard' && (
-          <DashboardView onNavigate={handleViewChange} onOpenSettings={() => setShowSettings(true)} />
+          <DashboardView onNavigate={handleViewChange} />
         )}
         {currentView === 'use-ontology' && (
           <UseOntologyView onNavigate={handleViewChange} />
