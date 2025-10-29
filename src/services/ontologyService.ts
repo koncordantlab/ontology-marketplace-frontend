@@ -49,14 +49,7 @@ class OntologyService {
     }
   }
 
-  /**
-   * Sanitize string to prevent XSS
-   */
-  private sanitizeString(input: string): string {
-    return input
-      .replace(/[<>]/g, '') // Remove angle brackets
-      .substring(0, 10000); // Limit length
-  }
+  
 
   /**
    * Get a user-friendly error message
@@ -271,22 +264,22 @@ class OntologyService {
    */
   async addOntology(ontology: Omit<Ontology, 'id' | 'createdAt' | 'updatedAt' | 'ownerId'>): Promise<AddOntologyResponse> {
     try {
-      const token = await this.getAuthToken();
+      // Auth handled by BackendApiClient
       
       const payload = {
         name: ontology.name,
         description: ontology.description,
-        properties: {
-          source_url: ontology.properties.source_url || '',
-          image_url: ontology.properties.image_url || '',
-          is_public: ontology.properties.is_public
-        }
+        tags: ontology.tags || [],
+        source_url: ontology.properties.source_url || '',
+        image_url: ontology.properties.image_url || '',
+        is_public: ontology.properties.is_public,
       };
 
 
 
       const data = await BackendApiClient.createOntology(payload);
 
+<<<<<<< HEAD
       // Normalize response: API may return various shapes
       // Expected: { success, data: { created_ontologies: [ { uuid, ... } ] } }
       let createdItem: any = null;
@@ -344,6 +337,21 @@ class OntologyService {
       return {
         success: true,
         data: normalized
+=======
+      // Normalize response: API may return array or object
+      let created: any = data as any;
+      if (Array.isArray(created)) {
+        created = created[0];
+      } else if (created && Array.isArray(created.data)) {
+        created = created.data[0];
+      } else if (created && Array.isArray(created.ontologies)) {
+        created = created.ontologies[0];
+      }
+
+      return {
+        success: true,
+        data: created
+>>>>>>> 49c63ce (Tags dialog moved to own file)
       };
     } catch (error) {
       console.error('Error adding ontology:', error);
@@ -397,7 +405,8 @@ class OntologyService {
     description: string, 
     isPublic: boolean = false,
     sourceUrl?: string,
-    imageUrl?: string
+    imageUrl?: string,
+    tags?: string[]
   ): Promise<{ ontology?: Ontology; error?: string }> {
     // Validate required fields
     if (!name || !name.trim()) {
@@ -440,7 +449,8 @@ class OntologyService {
         source_url: sanitizedSourceUrl,
         image_url: sanitizedImageUrl,
         is_public: isPublic
-      }
+      },
+      tags: Array.isArray(tags) ? tags : []
     };
 
     const result = await this.addOntology(ontologyData);
@@ -496,7 +506,7 @@ class OntologyService {
   /**
    * Update an existing ontology
    */
-  async updateOntology(ontologyId: string, updates: Partial<Ontology>): Promise<AddOntologyResponse> {
+  async updateOntology(ontologyId: string, updates: any): Promise<AddOntologyResponse> {
     try {
       const data = await BackendApiClient.updateOntology(ontologyId, updates);
       return { success: true, data };
