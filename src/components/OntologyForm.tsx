@@ -123,7 +123,8 @@ export const OntologyForm: React.FC<OntologyFormProps> = ({
         
         // Navigate after success
         setTimeout(() => {
-          onNavigate('ontology-details', (result as any).ontology?.id);
+          const created = (result as any).ontology as any;
+          onNavigate('ontology-details', created?.id || created?.uuid);
         }, 1500);
       }
     } catch (error) {

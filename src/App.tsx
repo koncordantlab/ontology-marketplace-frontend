@@ -186,7 +186,6 @@ function App() {
 
   const navigationItems = [
     { id: 'dashboard' as ViewType, label: 'Dashboard' },
-    { id: 'use-ontology' as ViewType, label: 'Use Ontology' },
     { id: 'new-ontology' as ViewType, label: 'Create New' },
   ];
 
