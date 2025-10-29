@@ -33,6 +33,11 @@ export const BACKEND_API = {
     LIST: '/get_tags',
   },
   
+  // User endpoints
+  USER: {
+    GET: '/get_user',
+  },
+  
   // Database endpoints
   DATABASE: {
     UPLOAD_TO_NEO4J: (ontologyId: string) => `/api/ontologies/${ontologyId}/upload-to-neo4j`,

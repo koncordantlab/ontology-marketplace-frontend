@@ -3,6 +3,7 @@ import { CommentSystem } from '../components/CommentSystem';
 import { ontologyService, Ontology } from '../services/ontologyService';
 import { BackendApiClient } from '../config/backendApi';
 import { cloudinaryService } from '../services/cloudinaryService';
+import { userService } from '../services/userService';
 
 interface OntologyDetailsViewProps {
   ontologyId: string | null;
@@ -73,21 +74,29 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     fetchOntology();
   }, [ontologyId]);
 
-  // Check edit permission
+  // Check edit permission using cached permissions from user account
   useEffect(() => {
-    const checkPermission = async () => {
-      try {
-        if (!ontologyId) return;
-        const ontologyUuid = (ontology && (ontology as any).uuid) || ontologyId;
-        const resp: any = await BackendApiClient.request(`/can_edit_ontology/${ontologyUuid}`, {
-          method: 'GET',
-        });
-        setCanEdit(!!resp?.success);
-      } catch (e) {
-        setCanEdit(false);
-      }
-    };
-    checkPermission();
+    if (!ontologyId) {
+      setCanEdit(false);
+      return;
+    }
+    
+    const ontologyUuid = (ontology && (ontology as any).uuid) || ontologyId;
+    
+    // Check from cache (no network call)
+    const canEditResult = userService.canEdit(ontologyUuid);
+    setCanEdit(canEditResult);
+    
+    // Refresh cache if stale (background refresh, doesn't block UI)
+    if (userService.isStale()) {
+      userService.refresh().then(() => {
+        // Re-check after refresh
+        const refreshedResult = userService.canEdit(ontologyUuid);
+        setCanEdit(refreshedResult);
+      }).catch((error) => {
+        console.error('Failed to refresh user account:', error);
+      });
+    }
   }, [ontologyId, ontology]);
 
   // Initialize editable copy when ontology loads
@@ -214,6 +223,10 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       if ((result as any)?.success === false) {
         throw new Error((result as any)?.error || 'Failed to update ontology');
       }
+      // Refresh user account cache after successful update (permissions may have changed)
+      userService.refresh().catch((error) => {
+        console.error('Failed to refresh user account after update:', error);
+      });
       // Refresh local state
       setOntology({ ...editable, id: ontology.id, properties: { ...editable.properties, image_url: imageUrlToSave } });
       // Clear selected image state after successful save

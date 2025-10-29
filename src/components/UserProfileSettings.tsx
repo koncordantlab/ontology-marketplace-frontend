@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { User, Mail, Lock, Camera, Save, AlertCircle } from 'lucide-react';
+import { User, Mail, Lock, Camera, Save, AlertCircle, Globe, EyeOff } from 'lucide-react';
 import { authService, AuthError } from '../services/authService';
+import { userService } from '../services/userService';
 
 interface UserProfileSettingsProps {
   user: {
@@ -18,7 +19,10 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
   onUpdate,
   onClose
 }) => {
-  const [name, setName] = useState(user.name);
+  const account = userService.getUserAccount();
+  const [name, setName] = useState(account?.name || user.name);
+  const [imageUrl, setImageUrl] = useState(account?.image_url || user.photoURL || '');
+  const [isPublic, setIsPublic] = useState(account?.is_public ?? false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,9 +38,26 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
     setSuccessMessage('');
 
     try {
-      await authService.updateUserProfile({ name });
+      // Update Firebase profile (name, photoURL)
+      await authService.updateUserProfile({ 
+        name, 
+        photoURL: imageUrl || undefined 
+      });
+      
+      // Refresh user account from backend (which may have additional fields)
+      await userService.refresh();
+      
       setSuccessMessage('Profile updated successfully!');
-      onUpdate({ ...user, name });
+      const updatedAccount = userService.getUserAccount();
+      if (updatedAccount) {
+        onUpdate({ 
+          ...user, 
+          name: updatedAccount.name,
+          photoURL: updatedAccount.image_url 
+        });
+      } else {
+        onUpdate({ ...user, name });
+      }
     } catch (err) {
       const authError = err as AuthError;
       setError(authError.message);
@@ -135,25 +156,34 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
               {/* Profile Photo */}
               <div className="flex items-center space-x-4">
                 <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center">
-                  {user.photoURL ? (
+                  {imageUrl || user.photoURL ? (
                     <img
-                      src={user.photoURL}
-                      alt={user.name}
+                      src={imageUrl || user.photoURL}
+                      alt={name || user.name}
                       className="w-16 h-16 rounded-full object-cover"
                     />
                   ) : (
                     <span className="text-white font-bold text-xl">
-                      {user.name.split(' ').map(n => n[0]).join('')}
+                      {(name || user.name).split(' ').map(n => n[0]).join('')}
                     </span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-                >
-                  <Camera className="h-4 w-4" />
-                  <span>Change Photo</span>
-                </button>
+                <div className="flex flex-col space-y-2">
+                  <button
+                    type="button"
+                    className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+                  >
+                    <Camera className="h-4 w-4" />
+                    <span>Change Photo</span>
+                  </button>
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="Image URL"
+                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
 
               {/* Name */}
@@ -188,13 +218,49 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
                   <input
                     id="email"
                     type="email"
-                    value={user.email}
+                    value={account?.email || user.email}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-500"
                     disabled
                   />
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
                   Email cannot be changed. Contact support if needed.
+                </p>
+              </div>
+
+              {/* Public Profile Toggle */}
+              <div>
+                <label className="flex items-center space-x-3">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={isPublic}
+                      onChange={(e) => setIsPublic(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <div className={`w-14 h-7 rounded-full transition-colors duration-200 ${
+                      isPublic ? 'bg-blue-600' : 'bg-gray-300'
+                    }`}>
+                      <div className={`w-6 h-6 rounded-full bg-white mt-0.5 ml-0.5 transition-transform duration-200 ${
+                        isPublic ? 'transform translate-x-7' : ''
+                      }`}></div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {isPublic ? (
+                      <Globe className="h-5 w-5 text-blue-600" />
+                    ) : (
+                      <EyeOff className="h-5 w-5 text-gray-400" />
+                    )}
+                    <span className="text-sm font-medium text-gray-700">
+                      {isPublic ? 'Public Profile' : 'Private Profile'}
+                    </span>
+                  </div>
+                </label>
+                <p className="mt-1 text-xs text-gray-500 ml-20">
+                  {isPublic 
+                    ? 'Your profile is visible to other users'
+                    : 'Your profile is private and only visible to you'}
                 </p>
               </div>
 

@@ -8,6 +8,7 @@ import { DashboardView } from './views/DashboardView';
 import { LoginView } from './views/LoginView';
 import { UserProfileSettings } from './components/UserProfileSettings';
 import { authService } from './services/authService';
+import { userService } from './services/userService';
 
 type ViewType = 'login' | 'dashboard' | 'use-ontology' | 'ontology-details' | 'edit-ontology' | 'new-ontology';
 
@@ -35,12 +36,20 @@ function App() {
     }
 
     // Listen for authentication state changes
-    const unsubscribe = authService.onAuthStateChange((user) => {
+    const unsubscribe = authService.onAuthStateChange(async (user) => {
       setCurrentUser(user);
       if (user) {
         setCurrentView('dashboard');
+        // Fetch user account and permissions after login
+        try {
+          await userService.refresh();
+        } catch (error) {
+          console.error('Failed to fetch user account on login:', error);
+        }
       } else {
         setCurrentView('login');
+        // Clear cache on logout
+        userService.clear();
       }
       setIsLoading(false);
     });
@@ -50,6 +59,10 @@ function App() {
     if (user) {
       setCurrentUser(user);
       setCurrentView('dashboard');
+      // Fetch user account if user is already logged in
+      userService.refresh().catch((error) => {
+        console.error('Failed to fetch user account on initial load:', error);
+      });
     }
     setIsLoading(false);
 
@@ -150,6 +163,7 @@ function App() {
   const handleLogout = async () => {
     try {
       await authService.signOut();
+      userService.clear();
       setCurrentUser(null);
       setCurrentView('login');
       setSelectedOntologyId(null);
