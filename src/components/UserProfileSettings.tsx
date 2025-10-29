@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { User, Mail, Lock, Camera, Save, AlertCircle, Globe, EyeOff } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { User, Mail, Lock, Camera, Save, AlertCircle, Globe, EyeOff, LogOut } from 'lucide-react';
 import { authService, AuthError } from '../services/authService';
 import { userService } from '../services/userService';
+import { cloudinaryService } from '../services/cloudinaryService';
 
 interface UserProfileSettingsProps {
   user: {
@@ -20,9 +21,15 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
   onClose
 }) => {
   const account = userService.getUserAccount();
-  const [name, setName] = useState(account?.name || user.name);
-  const [imageUrl, setImageUrl] = useState(account?.image_url || user.photoURL || '');
+  const firebaseUser = authService.getCurrentUser();
+  
+  // Profile fields from Firebase Auth
+  const [name, setName] = useState(firebaseUser?.name || user.name);
+  const [imageUrl, setImageUrl] = useState(firebaseUser?.photoURL || user.photoURL || '');
+  
+  // Backend fields
   const [isPublic, setIsPublic] = useState(account?.is_public ?? false);
+  
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -30,6 +37,27 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [activeTab, setActiveTab] = useState<'profile' | 'password'>('profile');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Track dirty state against initial snapshot
+  const [initial, setInitial] = useState(() => ({
+    name: firebaseUser?.name || user.name,
+    imageUrl: firebaseUser?.photoURL || user.photoURL || '',
+    isPublic: account?.is_public ?? false,
+  }));
+
+  useEffect(() => {
+    setInitial({
+      name: firebaseUser?.name || user.name,
+      imageUrl: firebaseUser?.photoURL || user.photoURL || '',
+      isPublic: account?.is_public ?? false,
+    });
+    // Keep snapshot in sync when underlying sources change
+  }, [firebaseUser?.name, firebaseUser?.photoURL, account?.is_public, user.name, user.photoURL]);
+
+  const isDirty = useMemo(() => (
+    name !== initial.name || imageUrl !== initial.imageUrl || isPublic !== initial.isPublic
+  ), [name, imageUrl, isPublic, initial]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,19 +72,28 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
         photoURL: imageUrl || undefined 
       });
       
-      // Refresh user account from backend (which may have additional fields)
+      // Update backend (is_public) only if changed
+      if (isPublic !== initial.isPublic) {
+        await userService.updateUser(isPublic);
+      }
+      
+      // Refresh backend cache
       await userService.refresh();
       
       setSuccessMessage('Profile updated successfully!');
-      const updatedAccount = userService.getUserAccount();
-      if (updatedAccount) {
+        // Sync snapshot so dirty state resets
+        setInitial({ name, imageUrl, isPublic });
+      
+      // Update parent component with Firebase user data
+      const updatedFirebaseUser = authService.getCurrentUser();
+      if (updatedFirebaseUser) {
         onUpdate({ 
           ...user, 
-          name: updatedAccount.name,
-          photoURL: updatedAccount.image_url 
+          name: updatedFirebaseUser.name,
+          photoURL: updatedFirebaseUser.photoURL 
         });
       } else {
-        onUpdate({ ...user, name });
+        onUpdate({ ...user, name, photoURL: imageUrl });
       }
     } catch (err) {
       const authError = err as AuthError;
@@ -171,17 +208,41 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
                 <div className="flex flex-col space-y-2">
                   <button
                     type="button"
+                    onClick={() => fileInputRef.current?.click()}
                     className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
                   >
                     <Camera className="h-4 w-4" />
                     <span>Change Photo</span>
                   </button>
                   <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="Image URL"
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setIsLoading(true);
+                      setError('');
+                      try {
+                        // Use the default preset that exists
+                        const res = await cloudinaryService.uploadImage(file, {
+                          preset: 'ontologymarketplace',
+                          folder: 'profile-images',
+                          tags: ['profile', 'user']
+                        });
+                        if (!res.success || !res.url) {
+                          throw new Error(res.error || 'Failed to upload image');
+                        }
+                        setImageUrl(res.url);
+                        setSuccessMessage('Image uploaded. Click Save Changes to apply.');
+                      } catch (err: any) {
+                        setError(err?.message || 'Image upload failed');
+                      } finally {
+                        setIsLoading(false);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -218,7 +279,7 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
                   <input
                     id="email"
                     type="email"
-                    value={account?.email || user.email}
+                    value={firebaseUser?.email || user.email}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-500"
                     disabled
                   />
@@ -264,19 +325,39 @@ export const UserProfileSettings: React.FC<UserProfileSettingsProps> = ({
                 </p>
               </div>
 
-              {/* Save Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className={`w-full flex items-center justify-center space-x-2 py-2 px-4 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 ${
-                  isLoading
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                <Save className="h-4 w-4" />
-                <span>{isLoading ? 'Saving...' : 'Save Changes'}</span>
-              </button>
+              {/* Actions Row: Save Changes + Log Out */}
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="submit"
+                  disabled={isLoading || !isDirty}
+                  className={`inline-flex items-center justify-center space-x-2 py-2 px-4 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 ${
+                    isLoading || !isDirty
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{isLoading ? 'Saving...' : 'Save Changes'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await authService.signOut();
+                      userService.clear();
+                      onClose();
+                      // Optionally: window.location.reload();
+                    } catch (e) {
+                      setError('Failed to log out. Please try again.');
+                    }
+                  }}
+                  className="inline-flex items-center space-x-2 py-2 px-4 rounded-md font-medium bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Log Out</span>
+                </button>
+              </div>
             </form>
           )}
 
