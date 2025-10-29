@@ -279,19 +279,43 @@ class OntologyService {
 
       const data = await BackendApiClient.createOntology(payload);
 
-      // Normalize response: API may return array or object
-      let created: any = data as any;
-      if (Array.isArray(created)) {
-        created = created[0];
-      } else if (created && Array.isArray(created.data)) {
-        created = created.data[0];
-      } else if (created && Array.isArray(created.ontologies)) {
-        created = created.ontologies[0];
+      // Normalize response: API may return various shapes
+      // Expected: { success, data: { created_ontologies: [ { uuid, ... } ] } }
+      let createdItem: any = null;
+      const raw: any = data as any;
+
+      if (Array.isArray(raw)) {
+        createdItem = raw[0];
+      } else if (raw?.data?.created_ontologies && Array.isArray(raw.data.created_ontologies)) {
+        createdItem = raw.data.created_ontologies[0];
+      } else if (raw?.data && Array.isArray(raw.data)) {
+        createdItem = raw.data[0];
+      } else if (raw?.ontologies && Array.isArray(raw.ontologies)) {
+        createdItem = raw.ontologies[0];
+      } else if (raw?.ontology) {
+        createdItem = raw.ontology;
+      } else {
+        createdItem = raw;
       }
+
+      // Build a normalized Ontology object with id fallback to uuid
+      const normalized: Ontology = {
+        id: createdItem?.id || createdItem?.uuid || '',
+        name: createdItem?.name || ontology.name,
+        description: createdItem?.description || ontology.description,
+        properties: {
+          source_url: createdItem?.source_url || createdItem?.properties?.source_url || (ontology.properties.source_url || ''),
+          image_url: createdItem?.image_url || createdItem?.properties?.image_url || (ontology.properties.image_url || ''),
+          is_public: typeof createdItem?.is_public === 'boolean' ? createdItem.is_public : ontology.properties.is_public,
+        },
+        createdAt: createdItem?.createdAt ? new Date(createdItem.createdAt) : new Date(),
+        updatedAt: createdItem?.updatedAt ? new Date(createdItem.updatedAt) : new Date(),
+        tags: createdItem?.tags || ontology.tags || [],
+      };
 
       return {
         success: true,
-        data: created
+        data: normalized
       };
     } catch (error) {
       console.error('Error adding ontology:', error);
