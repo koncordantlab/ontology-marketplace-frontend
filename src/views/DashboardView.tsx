@@ -35,6 +35,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     setUser(currentUser);
   }, []);
 
+  // Refresh ontologies when auth state changes (e.g., after login)
+  useEffect(() => {
+    const unsubscribe = authService.onAuthStateChange((u) => {
+      setUser(u);
+      // Re-load ontologies so private ones appear after login
+      loadOntologies();
+    });
+    return unsubscribe;
+  }, []);
+
   // Load ontologies
   useEffect(() => {
     loadOntologies();
@@ -200,15 +210,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
               <span className="text-white font-bold text-lg">
-                {user?.name?.charAt(0) || 'U'}
+                {user?.name?.charAt(0) || 'A'}
               </span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{user?.name || 'User'}</h1>
-              <p className="text-gray-600">{user?.email}</p>
-              <p className="text-sm text-gray-500">
-                {ontologies.length} ontologies • Member since {new Date().getFullYear()}
-              </p>
+              <h1 className="text-2xl font-bold text-gray-900">{user?.name || 'Anonymous User'}</h1>
+              {user ? (
+                <>
+                  <p className="text-gray-600">{user.email}</p>
+                  <p className="text-sm text-gray-500">
+                    {ontologies.length} ontologies • Member since {new Date().getFullYear()}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  Log in to create and edit
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -217,15 +235,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
           {/* Sidebar */}
           <div className="w-64 flex-shrink-0">
             {/* Quick Actions */}
-            <div className="mb-6">
-              <button
-                onClick={() => onNavigate('new-ontology')}
-                className="w-full bg-blue-600 text-white px-4 py-3 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 flex items-center justify-center space-x-2"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Create New</span>
-              </button>
-            </div>
+            {user && (
+              <div className="mb-6">
+                <button
+                  onClick={() => onNavigate('new-ontology')}
+                  className="w-full bg-blue-600 text-white px-4 py-3 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 flex items-center justify-center space-x-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Create New</span>
+                </button>
+              </div>
+            )}
 
             {/* Categories */}
             <div className="mb-6">
