@@ -106,7 +106,13 @@ export class BackendApiClient {
     const { method = 'GET', body, headers = {}, params } = options;
     
     try {
-      const token = await this.getAuthToken();
+      let token: string | null = null;
+      try {
+        token = await this.getAuthToken();
+      } catch (e) {
+        // No authenticated user; proceed without Authorization header for public endpoints
+        token = null;
+      }
       
       // Build URL with query parameters if any
       let url = `${BACKEND_API.BASE_URL}${endpoint}`;
@@ -120,7 +126,7 @@ export class BackendApiClient {
       const response = await fetch(url, {
         method,
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json',
           ...headers,
         },

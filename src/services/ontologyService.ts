@@ -339,14 +339,6 @@ class OntologyService {
    * Get ontologies with loading state management
    */
   async getOntologies(): Promise<{ ontologies: Ontology[]; error?: string }> {
-    // Check if user is authenticated first
-    if (!this.isAuthenticated()) {
-      return {
-        ontologies: [],
-        error: 'Please log in with Firebase to access ontologies'
-      };
-    }
-
     const result = await this.searchOntologies();
     
     if (!result.success) {

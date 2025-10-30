@@ -20,11 +20,12 @@ interface User {
 }
 
 function App() {
-  const [currentView, setCurrentView] = useState<ViewType>('login');
+  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedOntologyId, setSelectedOntologyId] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingHash, setPendingHash] = useState<string | null>(null);
 
@@ -39,7 +40,7 @@ function App() {
     const unsubscribe = authService.onAuthStateChange(async (user) => {
       setCurrentUser(user);
       if (user) {
-        setCurrentView('dashboard');
+        setCurrentView((prev) => (prev === 'login' ? 'dashboard' : prev));
         // Fetch user account and permissions after login
         try {
           await userService.refresh();
@@ -47,7 +48,7 @@ function App() {
           console.error('Failed to fetch user account on login:', error);
         }
       } else {
-        setCurrentView('login');
+        setCurrentView('dashboard');
         // Clear cache on logout
         userService.clear();
       }
@@ -71,8 +72,8 @@ function App() {
 
   // Handle hash-based URLs for opening views in new tabs
   useEffect(() => {
-    // Only handle hash routing when user is authenticated and not loading
-    if (!currentUser || isLoading) return;
+    // Allow hash routing for both authenticated and anonymous users
+    if (isLoading) return;
 
     const processHash = (hash: string) => {
       if (!hash) return;
@@ -106,7 +107,7 @@ function App() {
     // Listen for hash changes
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [currentUser, isLoading, pendingHash]);
+  }, [isLoading, pendingHash]);
 
   // Handle Firebase permission errors by defaulting to demo mode
   useEffect(() => {
@@ -141,10 +142,14 @@ function App() {
     }
   };
 
-  const navigationItems = [
-    { id: 'dashboard' as ViewType, label: 'Dashboard' },
-    { id: 'new-ontology' as ViewType, label: 'Create New' },
-  ];
+  const navigationItems = currentUser
+    ? [
+        { id: 'dashboard' as ViewType, label: 'Dashboard' },
+        { id: 'new-ontology' as ViewType, label: 'Create New' },
+      ]
+    : [
+        { id: 'dashboard' as ViewType, label: 'Dashboard' },
+      ];
 
   const handleViewChange = (view: string, ontologyId?: string) => {
     setCurrentView(view as ViewType);
@@ -192,9 +197,7 @@ function App() {
   }
 
   // Show login view if not authenticated
-  if (!currentUser) {
-    return <LoginView onLogin={handleLogin} />;
-  }
+  // Always render app; unauthenticated users see the dashboard with a Login button
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -244,27 +247,35 @@ function App() {
           </div>
           
           <div className="flex items-center space-x-4">
-            {/* User menu (click opens Account Settings) */}
-            <div className="relative">
+            {currentUser ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="flex items-center space-x-2 p-2 rounded-full border border-gray-300 hover:bg-gray-50 transition-colors duration-200"
+                  title="Account Settings"
+                >
+                  {currentUser.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt={currentUser.name}
+                      className="h-5 w-5 rounded-full object-cover"
+                    />
+                  ) : (
+                    <User className="h-5 w-5 text-gray-600" />
+                  )}
+                  <span className="hidden sm:block text-sm font-medium text-gray-700">
+                    {currentUser.name}
+                  </span>
+                </button>
+              </div>
+            ) : (
               <button
-                onClick={() => setShowSettings(true)}
-                className="flex items-center space-x-2 p-2 rounded-full border border-gray-300 hover:bg-gray-50 transition-colors duration-200"
-                title="Account Settings"
+                onClick={() => setShowLoginModal(true)}
+                className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
-                {currentUser.photoURL ? (
-                  <img
-                    src={currentUser.photoURL}
-                    alt={currentUser.name}
-                    className="h-5 w-5 rounded-full object-cover"
-                  />
-                ) : (
-                  <User className="h-5 w-5 text-gray-600" />
-                )}
-                <span className="hidden sm:block text-sm font-medium text-gray-700">
-                  {currentUser.name}
-                </span>
+                Log In
               </button>
-            </div>
+            )}
           </div>
         </div>
 
@@ -310,6 +321,27 @@ function App() {
           <NewOntologyView onNavigate={handleViewChange} />
         )}
       </main>
+
+      {/* Login Modal for unauthenticated users */}
+      {showLoginModal && !currentUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-4 relative">
+            <button
+              onClick={() => setShowLoginModal(false)}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+            <LoginView
+              onLogin={(user) => {
+                handleLogin(user);
+                setShowLoginModal(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* User Profile Settings Modal */}
       {showSettings && currentUser && (

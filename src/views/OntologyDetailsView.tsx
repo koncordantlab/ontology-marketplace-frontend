@@ -610,17 +610,19 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                   )}
                 </div>
                 <div className="flex gap-3">
-                <button
-                  onClick={handleSave}
-                  disabled={!canEdit || !isDirty || isSaving}
-                  className={`px-8 py-3 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 ${
-                    !canEdit || !isDirty || isSaving
-                      ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
-                >
-                  {isSaving ? 'SAVING...' : 'SAVE'}
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={handleSave}
+                    disabled={!isDirty || isSaving}
+                    className={`px-8 py-3 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 ${
+                      !isDirty || isSaving
+                        ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {isSaving ? 'SAVING...' : 'SAVE'}
+                  </button>
+                )}
                 <button
                   onClick={handleUpload}
                   className="px-8 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
