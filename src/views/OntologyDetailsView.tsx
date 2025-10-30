@@ -15,6 +15,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   ontologyId,
   onNavigate
 }) => {
+  const defaultImageUrl = (import.meta.env as any).VITE_DEFAULT_ONTOLOGY_IMAGE_URL || (import.meta.env as any).DEFAULT_ONTOLOGY_IMAGE_URL || '';
   const [ontology, setOntology] = useState<Ontology | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -357,16 +358,23 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 alt="Selected preview"
                 className="w-full h-full max-h-48 object-contain rounded-lg"
               />
-            ) : editable?.properties?.image_url ? (
-              <img 
-                src={editable.properties.image_url} 
-                alt={editable.name || 'Ontology image'}
-                className="w-full h-full max-h-48 object-contain rounded-lg"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            ) : null}
+            ) : (
+              ((editable && editable.properties && editable.properties.image_url && editable.properties.image_url.trim()) || defaultImageUrl) ? (
+                <img
+                  src={(editable && editable.properties && editable.properties.image_url && editable.properties.image_url.trim()) ? (editable as any).properties.image_url : defaultImageUrl}
+                  alt={(editable && editable.name) || 'Ontology image'}
+                  className="w-full h-full max-h-48 object-contain rounded-lg"
+                  onError={(e) => {
+                    const img = e.currentTarget as HTMLImageElement;
+                    if (defaultImageUrl && img.src !== defaultImageUrl) {
+                      img.src = defaultImageUrl;
+                    } else {
+                      img.style.display = 'none';
+                    }
+                  }}
+                />
+              ) : null
+            )}
           </div>
           {canEdit && (
             <div className="mb-6">

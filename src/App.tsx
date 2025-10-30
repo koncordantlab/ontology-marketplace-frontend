@@ -89,7 +89,7 @@ function App() {
       }
 
       // Set the view based on hash
-      if (view && ['ontology-details', 'edit-ontology'].includes(view)) {
+      if (view && ['ontology-details', 'edit-ontology', 'dashboard'].includes(view)) {
         setCurrentView(view as ViewType);
       }
     };
@@ -228,7 +228,13 @@ function App() {
               {navigationItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => handleViewChange(item.id as ViewType)}
+                  onClick={() => {
+                    if (item.id === 'dashboard') {
+                      window.open('#dashboard', 'dashboard');
+                      return;
+                    }
+                    handleViewChange(item.id as ViewType);
+                  }}
                   className={`text-sm font-medium transition-colors duration-200 ${
                     currentView === item.id 
                       ? 'text-blue-600 border-b-2 border-blue-500 pb-1' 
@@ -286,7 +292,14 @@ function App() {
               {navigationItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => handleViewChange(item.id as ViewType)}
+                  onClick={() => {
+                    if (item.id === 'dashboard') {
+                      window.open('#dashboard', 'dashboard');
+                      setMobileMenuOpen(false);
+                      return;
+                    }
+                    handleViewChange(item.id as ViewType);
+                  }}
                   className={`text-left px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                     currentView === item.id 
                       ? 'text-blue-600 bg-blue-50' 

@@ -20,6 +20,7 @@ interface Tag {
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
+  const defaultImageUrl = (import.meta.env as any).VITE_DEFAULT_ONTOLOGY_IMAGE_URL || (import.meta.env as any).DEFAULT_ONTOLOGY_IMAGE_URL || '';
   const [ontologies, setOntologies] = useState<Ontology[]>([]);
   const [filteredOntologies, setFilteredOntologies] = useState<Ontology[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -344,22 +345,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                     className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer"
                   >
                     {/* Thumbnail */}
-                    <div className="h-48 bg-gray-100 rounded-t-lg flex items-center justify-center">
-                      {ontology.properties?.image_url ? (
-                        <img 
-                          src={ontology.properties.image_url} 
+                    <div className="h-56 bg-gray-50 rounded-t-lg flex items-center justify-center overflow-hidden">
+                      {((ontology.properties?.image_url && ontology.properties.image_url.trim()) || defaultImageUrl) ? (
+                        <img
+                          src={(ontology.properties?.image_url && ontology.properties.image_url.trim()) ? ontology.properties.image_url : defaultImageUrl}
                           alt={`${ontology.name} thumbnail`}
-                          className="w-full h-full object-cover rounded-t-lg"
+                          className="max-h-full max-w-full object-contain rounded-t-lg"
                           onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                            if (fallback) {
-                              fallback.style.display = 'flex';
+                            const img = e.currentTarget as HTMLImageElement;
+                            if (defaultImageUrl && img.src !== defaultImageUrl) {
+                              img.src = defaultImageUrl;
+                            } else {
+                              img.style.display = 'none';
+                              const fallback = img.nextElementSibling as HTMLElement;
+                              if (fallback) {
+                                fallback.style.display = 'flex';
+                              }
                             }
                           }}
                         />
                       ) : null}
-                      <div className="w-full h-full flex items-center justify-center" style={{ display: ontology.properties?.image_url ? 'none' : 'flex' }}>
+                      <div className="w-full h-full flex items-center justify-center" style={{ display: (((ontology.properties?.image_url && ontology.properties.image_url.trim()) ? ontology.properties.image_url : defaultImageUrl)) ? 'none' : 'flex' }}>
                         <FileText className="w-12 h-12 text-gray-400" />
                       </div>
                     </div>
