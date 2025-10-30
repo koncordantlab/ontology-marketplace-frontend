@@ -230,7 +230,8 @@ function App() {
                   key={item.id}
                   onClick={() => {
                     if (item.id === 'dashboard') {
-                      window.open('#dashboard', 'dashboard');
+                      const url = `${window.location.pathname}#dashboard`;
+                      window.open(url, 'dashboard');
                       return;
                     }
                     handleViewChange(item.id as ViewType);
@@ -294,7 +295,8 @@ function App() {
                   key={item.id}
                   onClick={() => {
                     if (item.id === 'dashboard') {
-                      window.open('#dashboard', 'dashboard');
+                      const url = `${window.location.pathname}#dashboard`;
+                      window.open(url, 'dashboard');
                       setMobileMenuOpen(false);
                       return;
                     }
