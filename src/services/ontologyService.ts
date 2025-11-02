@@ -1,4 +1,5 @@
 import { auth } from '../config/firebase';
+import { BackendApiClient } from '../config/backendApi';
 
 export interface Ontology {
   id?: string;
@@ -8,7 +9,6 @@ export interface Ontology {
     source_url?: string;
     image_url?: string;
     is_public: boolean;
-    tags?: string[];
   };
   createdAt?: Date;
   updatedAt?: Date;
@@ -18,6 +18,10 @@ export interface Ontology {
   relationship_count?: number;
   file_url?: string;
   uid?: string;
+  fileUrls?: string[];
+  score?: number | null;
+  uuid?: string;
+  tags?: string[];
 }
 
 export interface OntologyResponse {
@@ -33,26 +37,51 @@ export interface AddOntologyResponse {
 }
 
 class OntologyService {
-  private readonly baseUrl = 'https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net';
-  private fallbackUsed = false;
-  private lastFallbackReason = '';
-
   /**
-   * Check if fallback data was used in the last operation
+   * Validate URL format
    */
-  public wasFallbackUsed(): { used: boolean; reason: string } {
-    return {
-      used: this.fallbackUsed,
-      reason: this.lastFallbackReason
-    };
+  private isValidUrl(url: string): boolean {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch {
+      return false;
+    }
   }
 
+  
+
   /**
-   * Reset fallback tracking
+   * Get a user-friendly error message
    */
-  public resetFallbackTracking(): void {
-    this.fallbackUsed = false;
-    this.lastFallbackReason = '';
+  private getUserFriendlyError(error: any): string {
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      
+      if (message.includes('network') || message.includes('failed to fetch')) {
+        return 'Unable to connect to the server. Please check your internet connection.';
+      }
+      
+      if (message.includes('unauthorized') || message.includes('401')) {
+        return 'Your session has expired. Please log in again.';
+      }
+      
+      if (message.includes('forbidden') || message.includes('403')) {
+        return 'You do not have permission to perform this action.';
+      }
+      
+      if (message.includes('not found') || message.includes('404')) {
+        return 'The requested resource was not found.';
+      }
+      
+      if (message.includes('500') || message.includes('internal server error')) {
+        return 'Server error. Please try again later.';
+      }
+      
+      return 'An error occurred. Please try again.';
+    }
+    
+    return 'An unexpected error occurred.';
   }
 
   /**
@@ -81,76 +110,139 @@ class OntologyService {
    */
   async searchOntologies(): Promise<OntologyResponse> {
     try {
-      const token = await this.getAuthToken();
+      const data = await BackendApiClient.getOntologies();
       
-      const searchUrl = 'https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net/search_ontologies';
-
-      
-      const response = await fetch(searchUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('API Error Response:', errorData);
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      // Handle different response structures
+      let ontologiesArray: any[];
+      if (Array.isArray(data)) {
+        ontologiesArray = data;
+      } else if (data && data.data && Array.isArray(data.data.results)) {
+        // Backend returns: { success, message, data: { results: [...] } }
+        ontologiesArray = data.data.results;
+      } else if (data && Array.isArray(data.data)) {
+        ontologiesArray = data.data;
+      } else if (data && Array.isArray(data.ontologies)) {
+        ontologiesArray = data.ontologies;
+      } else {
+        console.warn('Unexpected response structure:', data);
+        ontologiesArray = [];
       }
-
-      const data = await response.json();
       
       // Normalize the data structure to ensure consistency
-      const normalizedOntologies = (data.ontologies || data || []).map((ontology: any) => {
-        // Handle date conversion - Firestore timestamps come as objects with _seconds
-        const parseDate = (dateValue: any): Date => {
-          if (!dateValue) return new Date();
-          
-          // If it's a Firestore timestamp object
-          if (dateValue && typeof dateValue === 'object' && dateValue._seconds) {
-            return new Date(dateValue._seconds * 1000);
+      // Helper function to safely get nested property values
+      const getValue = (obj: any, ...paths: string[]): any => {
+        for (const path of paths) {
+          const keys = path.split('.');
+          let value = obj;
+          for (const key of keys) {
+            if (value === null || value === undefined) break;
+            value = value[key];
           }
-          
-          // If it's already a Date object
-          if (dateValue instanceof Date) {
-            return dateValue;
-          }
-          
-          // If it's a string or number, try to parse it
-          try {
-            return new Date(dateValue);
-          } catch (e) {
-            console.warn('Failed to parse date:', dateValue);
-            return new Date();
-          }
-        };
+          if (value !== null && value !== undefined) return value;
+        }
+        return null;
+      };
+
+      // Helper function to parse dates from various formats
+      const parseDate = (dateValue: any): Date => {
+        if (!dateValue) return new Date();
+        
+        // If it's a Firestore timestamp object
+        if (dateValue && typeof dateValue === 'object' && dateValue._seconds) {
+          return new Date(dateValue._seconds * 1000);
+        }
+        
+        // If it's already a Date object
+        if (dateValue instanceof Date) {
+          return dateValue;
+        }
+        
+        // If it's a string or number, try to parse it
+        try {
+          return new Date(dateValue);
+        } catch (e) {
+          return new Date();
+        }
+      };
+
+      const normalizedOntologies = ontologiesArray.map((ontology: any) => {
+        // Get values with fallbacks for all possible field name variations
+        const id = getValue(ontology, 'id', 'uuid', '_id') || '';
+        const name = getValue(ontology, 'name', 'title') || 'Untitled Ontology';
+        const description = getValue(ontology, 'description', 'desc', 'summary') || '';
+        
+        // Handle properties object or flat structure
+        const sourceUrl = getValue(
+          ontology, 
+          'source_url', 
+          'sourceUrl',
+          'file_url', 
+          'fileUrl',
+          'url',
+          'properties.source_url',
+          'properties.sourceUrl'
+        ) || '';
+        
+        const imageUrl = getValue(
+          ontology,
+          'image_url',
+          'imageUrl',
+          'thumbnail',
+          'thumbnail_url',
+          'thumbnailUrl',
+          'properties.image_url',
+          'properties.imageUrl'
+        ) || '';
+        
+        const isPublic = getValue(
+          ontology,
+          'is_public',
+          'isPublic',
+          'public',
+          'properties.is_public',
+          'properties.isPublic'
+        ) ?? false;
+        
+        const ownerId = getValue(ontology, 'ownerId', 'owner_id', 'uid', 'userId', 'user_id') || '';
+        
+        // Get created/updated dates from multiple possible fields
+        const createdAt = parseDate(
+          getValue(ontology, 'createdAt', 'created_at', 'created', 'dateCreated', 'created_time')
+        );
+        
+        const updatedAt = parseDate(
+          getValue(ontology, 'updatedAt', 'updated_at', 'modified', 'dateModified', 'updatedAt', 'modified_at')
+        ) || createdAt;
 
         return {
-          id: ontology.id,
-          name: ontology.title || ontology.name || 'Untitled Ontology', // Handle both title and name fields
-          description: ontology.description || '',
+          id,
+          name,
+          description,
           properties: {
-            source_url: ontology.file_url || ontology.source_url || ontology.properties?.source_url || '',
-            image_url: ontology.image_url || ontology.properties?.image_url || '',
-            is_public: ontology.is_public ?? ontology.properties?.is_public ?? false
+            source_url: sourceUrl,
+            image_url: imageUrl,
+            is_public: isPublic
           },
-          ownerId: ontology.ownerId || ontology.uid || '',
-          createdAt: parseDate(ontology.createdAt || ontology.created_time),
-          updatedAt: parseDate(ontology.updatedAt || ontology.createdAt || ontology.created_time),
-          // Preserve additional fields
-          node_count: ontology.node_count,
-          relationship_count: ontology.relationship_count,
-          file_url: ontology.file_url,
-          uid: ontology.uid
+          ownerId,
+          createdAt,
+          updatedAt,
+          // Preserve all additional fields
+          node_count: getValue(ontology, 'node_count', 'nodeCount'),
+          relationship_count: getValue(ontology, 'relationship_count', 'relationshipCount'),
+          file_url: getValue(ontology, 'file_url', 'fileUrl'),
+          uid: getValue(ontology, 'uid'),
+          score: getValue(ontology, 'score'),
+          uuid: getValue(ontology, 'uuid'),
+          tags: getValue(ontology, 'tags', 'properties.tags') || [],
+          // Add any other fields that might exist
+          ...(Object.keys(ontology).reduce((acc, key) => {
+            if (!['id', 'name', 'title', 'description', 'properties', 'createdAt', 'created_at', 'updatedAt', 'updated_at'].includes(key)) {
+              acc[key] = ontology[key];
+            }
+            return acc;
+          }, {} as any))
         };
       });
-
-
-
       return {
         success: true,
         data: normalizedOntologies
@@ -158,236 +250,13 @@ class OntologyService {
     } catch (error) {
       console.error('Error searching ontologies:', error);
       
-      // Enhanced fallback strategy with multiple levels
-      return this.handleSearchFallback(error);
-    }
-  }
-
-  /**
-   * Enhanced fallback handling with multiple strategies
-   */
-  private handleSearchFallback(error: any): OntologyResponse {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    // Strategy 1: Network/CORS errors - return development mock data
-    if (errorMessage.includes('NetworkError') || 
-        errorMessage.includes('CORS') || 
-        errorMessage.includes('Failed to fetch')) {
-      return {
-        success: true,
-        data: this.getDevelopmentFallbackData()
-      };
-    }
-    
-    // Strategy 2: Authentication errors - return empty with auth error
-    if (errorMessage.includes('Unauthorized') || 
-        errorMessage.includes('401') ||
-        errorMessage.includes('authentication')) {
-      this.fallbackUsed = true;
-      this.lastFallbackReason = 'Authentication error';
+      // Return proper error instead of fallback data
       return {
         success: false,
-        error: 'Authentication failed. Please log in again.',
+        error: this.getUserFriendlyError(error),
         data: []
       };
     }
-    
-    // Strategy 3: Server errors (5xx) - return cached data if available
-    if (errorMessage.includes('500') || 
-        errorMessage.includes('502') || 
-        errorMessage.includes('503') ||
-        errorMessage.includes('Internal server error')) {
-      this.fallbackUsed = true;
-      this.lastFallbackReason = 'Server error (5xx)';
-      return {
-        success: true,
-        data: this.getCachedFallbackData(),
-        error: 'Using cached data due to server issues'
-      };
-    }
-    
-    // Strategy 4: Rate limiting or temporary issues
-    if (errorMessage.includes('429') || 
-        errorMessage.includes('rate limit') ||
-        errorMessage.includes('temporary')) {
-      this.fallbackUsed = true;
-      this.lastFallbackReason = 'Rate limiting';
-      return {
-        success: true,
-        data: this.getMinimalFallbackData(),
-        error: 'Rate limited - showing limited data'
-      };
-    }
-    
-    // Strategy 5: Generic fallback for unknown errors
-    this.fallbackUsed = true;
-    this.lastFallbackReason = 'Unknown error';
-    return {
-      success: false,
-      error: `Failed to load ontologies: ${errorMessage}`,
-      data: []
-    };
-  }
-
-  /**
-   * Development fallback data for network issues
-   */
-  private getDevelopmentFallbackData(): Ontology[] {
-    return [
-      {
-        id: 'dev-1',
-        name: 'Medical Ontology (Dev)',
-        description: 'Sample medical terminology ontology for development',
-        properties: {
-          source_url: 'https://example.com/medical.owl',
-          image_url: 'https://via.placeholder.com/150',
-          is_public: true
-        },
-        ownerId: 'dev-user',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      {
-        id: 'dev-2',
-        name: 'E-commerce Catalog (Dev)',
-        description: 'Sample product categorization ontology',
-        properties: {
-          source_url: 'https://example.com/ecommerce.owl',
-          image_url: 'https://via.placeholder.com/150',
-          is_public: false
-        },
-        ownerId: 'dev-user',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      },
-      {
-        id: 'dev-3',
-        name: 'Academic Research (Dev)',
-        description: 'Sample academic research ontology',
-        properties: {
-          source_url: 'https://example.com/academic.owl',
-          image_url: 'https://via.placeholder.com/150',
-          is_public: true
-        },
-        ownerId: 'dev-user',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ];
-  }
-
-  /**
-   * Cached fallback data for server issues
-   */
-  private getCachedFallbackData(): Ontology[] {
-    // This could be enhanced to use localStorage or other caching mechanisms
-    return [
-      {
-        id: 'cached-1',
-        name: 'Cached Medical Ontology',
-        description: 'Previously loaded medical ontology (cached)',
-        properties: {
-          source_url: 'https://example.com/cached-medical.owl',
-          image_url: 'https://via.placeholder.com/150',
-          is_public: true
-        },
-        ownerId: 'cached-user',
-        createdAt: new Date(Date.now() - 86400000), // 1 day ago
-        updatedAt: new Date(Date.now() - 86400000)
-      }
-    ];
-  }
-
-  /**
-   * Minimal fallback data for rate limiting
-   */
-  private getMinimalFallbackData(): Ontology[] {
-    return [
-      {
-        id: 'minimal-1',
-        name: 'Basic Ontology',
-        description: 'Minimal ontology data available',
-        properties: {
-          source_url: '',
-          image_url: '',
-          is_public: true
-        },
-        ownerId: 'system',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    ];
-  }
-
-  /**
-   * Enhanced fallback handling for add ontology
-   */
-  private handleAddOntologyFallback(error: any, ontology: Omit<Ontology, 'id' | 'createdAt' | 'updatedAt' | 'ownerId'>): AddOntologyResponse {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    
-    // Strategy 1: Network/CORS errors - simulate success for development
-    if (errorMessage.includes('NetworkError') || 
-        errorMessage.includes('CORS') || 
-        errorMessage.includes('Failed to fetch')) {
-      this.fallbackUsed = true;
-      this.lastFallbackReason = 'Network/CORS error (add ontology)';
-      return {
-        success: true,
-        data: {
-          id: `dev-${Date.now()}`,
-          name: ontology.name,
-          description: ontology.description,
-          properties: ontology.properties,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      };
-    }
-    
-    // Strategy 2: Authentication errors
-    if (errorMessage.includes('Unauthorized') || 
-        errorMessage.includes('401') ||
-        errorMessage.includes('authentication')) {
-      return {
-        success: false,
-        error: 'Authentication failed. Please log in again.'
-      };
-    }
-    
-    // Strategy 3: Validation errors
-    if (errorMessage.includes('400') || 
-        errorMessage.includes('Missing required fields') ||
-        errorMessage.includes('validation')) {
-      return {
-        success: false,
-        error: 'Invalid ontology data. Please check your input.'
-      };
-    }
-    
-    // Strategy 4: Server errors
-    if (errorMessage.includes('500') || 
-        errorMessage.includes('502') || 
-        errorMessage.includes('503') ||
-        errorMessage.includes('Internal server error')) {
-      return {
-        success: true,
-        data: {
-          id: `temp-${Date.now()}`,
-          name: ontology.name,
-          description: ontology.description,
-          properties: ontology.properties,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        error: 'Ontology may not have been saved due to server issues'
-      };
-    }
-    
-    // Strategy 5: Generic fallback
-    return {
-      success: false,
-      error: `Failed to add ontology: ${errorMessage}`
-    };
   }
 
   /**
@@ -395,47 +264,67 @@ class OntologyService {
    */
   async addOntology(ontology: Omit<Ontology, 'id' | 'createdAt' | 'updatedAt' | 'ownerId'>): Promise<AddOntologyResponse> {
     try {
-      const token = await this.getAuthToken();
+      // Auth handled by BackendApiClient
       
       const payload = {
         name: ontology.name,
         description: ontology.description,
-        properties: {
-          source_url: ontology.properties.source_url || '',
-          image_url: ontology.properties.image_url || '',
-          is_public: ontology.properties.is_public
-        }
+        tags: ontology.tags || [],
+        source_url: ontology.properties.source_url || '',
+        image_url: ontology.properties.image_url || '',
+        is_public: ontology.properties.is_public,
       };
 
 
 
-      const addUrl = 'https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net/add_ontology';
-      const response = await fetch(addUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+      const data = await BackendApiClient.createOntology(payload);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Add ontology error response:', errorData);
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      // Normalize response: API may return various shapes
+      // Expected: { success, data: { created_ontologies: [ { uuid, ... } ] } }
+      let createdItem: any = null;
+      const raw: any = data as any;
+
+      if (Array.isArray(raw)) {
+        createdItem = raw[0];
+      } else if (raw?.data?.created_ontologies && Array.isArray(raw.data.created_ontologies)) {
+        createdItem = raw.data.created_ontologies[0];
+      } else if (raw?.data && Array.isArray(raw.data)) {
+        createdItem = raw.data[0];
+      } else if (raw?.ontologies && Array.isArray(raw.ontologies)) {
+        createdItem = raw.ontologies[0];
+      } else if (raw?.ontology) {
+        createdItem = raw.ontology;
+      } else {
+        createdItem = raw;
       }
 
-      const data = await response.json();
-      
+      // Build a normalized Ontology object with id fallback to uuid
+      const normalized: Ontology = {
+        id: createdItem?.id || createdItem?.uuid || '',
+        name: createdItem?.name || ontology.name,
+        description: createdItem?.description || ontology.description,
+        properties: {
+          source_url: createdItem?.source_url || createdItem?.properties?.source_url || (ontology.properties.source_url || ''),
+          image_url: createdItem?.image_url || createdItem?.properties?.image_url || (ontology.properties.image_url || ''),
+          is_public: typeof createdItem?.is_public === 'boolean' ? createdItem.is_public : ontology.properties.is_public,
+        },
+        createdAt: createdItem?.createdAt ? new Date(createdItem.createdAt) : new Date(),
+        updatedAt: createdItem?.updatedAt ? new Date(createdItem.updatedAt) : new Date(),
+        tags: createdItem?.tags || ontology.tags || [],
+      };
+
       return {
         success: true,
-        data: data.ontology || data
+        data: normalized
       };
     } catch (error) {
       console.error('Error adding ontology:', error);
       
-      // Enhanced fallback for add ontology
-      return this.handleAddOntologyFallback(error, ontology);
+      // Return proper error instead of fallback
+      return {
+        success: false,
+        error: this.getUserFriendlyError(error)
+      };
     }
   }
 
@@ -450,14 +339,6 @@ class OntologyService {
    * Get ontologies with loading state management
    */
   async getOntologies(): Promise<{ ontologies: Ontology[]; error?: string }> {
-    // Check if user is authenticated first
-    if (!this.isAuthenticated()) {
-      return {
-        ontologies: [],
-        error: 'Please log in with Firebase to access ontologies'
-      };
-    }
-
     const result = await this.searchOntologies();
     
     if (!result.success) {
@@ -480,25 +361,52 @@ class OntologyService {
     description: string, 
     isPublic: boolean = false,
     sourceUrl?: string,
-    imageUrl?: string
+    imageUrl?: string,
+    tags?: string[]
   ): Promise<{ ontology?: Ontology; error?: string }> {
     // Validate required fields
-    if (!name.trim()) {
+    if (!name || !name.trim()) {
       return { error: 'Ontology name is required' };
     }
     
-    if (!description.trim()) {
+    if (!description || !description.trim()) {
       return { error: 'Ontology description is required' };
     }
 
+    // Validate name length
+    if (name.trim().length > 255) {
+      return { error: 'Ontology name must be 255 characters or less' };
+    }
+
+    // Validate description length
+    if (description.trim().length > 10000) {
+      return { error: 'Description must be 10,000 characters or less' };
+    }
+
+    // Validate URLs if provided
+    if (sourceUrl && !this.isValidUrl(sourceUrl)) {
+      return { error: 'Invalid source URL format' };
+    }
+
+    if (imageUrl && !this.isValidUrl(imageUrl)) {
+      return { error: 'Invalid image URL format' };
+    }
+
+    // Sanitize input
+    const sanitizedName = name.trim().substring(0, 255);
+    const sanitizedDescription = description.trim().substring(0, 10000);
+    const sanitizedSourceUrl = sourceUrl ? sourceUrl.trim().substring(0, 2048) : '';
+    const sanitizedImageUrl = imageUrl ? imageUrl.trim().substring(0, 2048) : '';
+
     const ontologyData: Omit<Ontology, 'id' | 'createdAt' | 'updatedAt' | 'ownerId'> = {
-      name: name.trim(),
-      description: description.trim(),
+      name: sanitizedName,
+      description: sanitizedDescription,
       properties: {
-        source_url: sourceUrl?.trim() || '',
-        image_url: imageUrl?.trim() || '',
+        source_url: sanitizedSourceUrl,
+        image_url: sanitizedImageUrl,
         is_public: isPublic
-      }
+      },
+      tags: Array.isArray(tags) ? tags : []
     };
 
     const result = await this.addOntology(ontologyData);
@@ -554,30 +462,28 @@ class OntologyService {
   /**
    * Update an existing ontology
    */
-  async updateOntology(ontologyId: string, updates: Partial<Ontology>): Promise<AddOntologyResponse> {
+  async updateOntology(ontologyId: string, updates: any): Promise<AddOntologyResponse> {
     try {
-      const token = await this.getAuthToken();
-      const response = await fetch(`${this.baseUrl}/update_ontology`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: ontologyId,
-          ...updates
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data;
+      const data = await BackendApiClient.updateOntology(ontologyId, updates);
+      return { success: true, data };
     } catch (error) {
       console.error('Error updating ontology:', error);
-      return { success: false, error: 'Failed to update ontology' };
+      const message = error instanceof Error ? error.message : 'Failed to update ontology';
+      return { success: false, error: message };
+    }
+  }
+
+  /**
+   * Delete an ontology
+   */
+  async deleteOntology(ontologyId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await BackendApiClient.deleteOntology(ontologyId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting ontology:', error);
+      const message = error instanceof Error ? error.message : 'Failed to delete ontology';
+      return { success: false, error: message };
     }
   }
 }

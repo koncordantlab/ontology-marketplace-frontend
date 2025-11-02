@@ -1,0 +1,187 @@
+/**
+ * Service to manage user account data and permissions
+ * Fetches backend user preferences and permissions from /get_user endpoint
+ * Note: Profile data (name, email, photoURL) is managed by Firebase Auth
+ */
+
+import { BackendApiClient } from '../config/backendApi';
+
+export interface UserAccount {
+  is_public: boolean;
+  permissions: {
+    can_edit_ontologies: string[];
+    can_delete_ontologies: string[];
+  };
+}
+
+export interface UserAccountResponse {
+  is_public: boolean;
+  permissions: {
+    can_edit_ontologies: string[];
+    can_delete_ontologies: string[];
+  };
+}
+
+class UserService {
+  private userAccount: UserAccount | null = null;
+  private lastFetched: number = 0;
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+  private fetchPromise: Promise<UserAccount | null> | null = null;
+
+  /**
+   * Fetch user account data from backend (only is_public and permissions)
+   */
+  private async fetchUserAccount(): Promise<UserAccount | null> {
+    try {
+      const response: UserAccountResponse = await BackendApiClient.request('/get_user', {
+        method: 'GET',
+      });
+      
+      // Normalize the response
+      const account: UserAccount = {
+        is_public: response.is_public ?? false,
+        permissions: {
+          can_edit_ontologies: Array.isArray(response.permissions?.can_edit_ontologies)
+            ? response.permissions.can_edit_ontologies
+            : [],
+          can_delete_ontologies: Array.isArray(response.permissions?.can_delete_ontologies)
+            ? response.permissions.can_delete_ontologies
+            : [],
+        },
+      };
+
+      return account;
+    } catch (error) {
+      console.error('Failed to fetch user account:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update user preferences on backend
+   */
+  async updateUser(isPublic: boolean): Promise<void> {
+    try {
+      await BackendApiClient.request('/update_user', {
+        method: 'PUT',
+        body: { is_public: isPublic },
+      });
+      
+      // Update local cache
+      if (this.userAccount) {
+        this.userAccount.is_public = isPublic;
+      }
+    } catch (error) {
+      console.error('Failed to update user:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Refresh user account and permissions cache
+   */
+  async refresh(): Promise<UserAccount | null> {
+    // If already fetching, wait for that to complete
+    if (this.fetchPromise) {
+      return this.fetchPromise;
+    }
+
+    this.fetchPromise = (async () => {
+      try {
+        const account = await this.fetchUserAccount();
+        if (account) {
+          this.userAccount = account;
+          this.lastFetched = Date.now();
+        } else {
+          // If fetch failed, don't clear existing cache
+          return this.userAccount;
+        }
+        return account;
+      } finally {
+        this.fetchPromise = null;
+      }
+    })();
+
+    return this.fetchPromise;
+  }
+
+  /**
+   * Get cached user account data
+   */
+  getUserAccount(): UserAccount | null {
+    return this.userAccount;
+  }
+
+  /**
+   * Check if an ontology ID has a specific permission (from cache, no network call)
+   * Since permissions come from a single /get_user call, we can check both from the same source
+   */
+  hasPermission(ontologyId: string, permissionType: 'edit' | 'delete'): boolean {
+    if (!ontologyId || !this.userAccount) return false;
+    const normalizedId = ontologyId.trim();
+    const permissionArray = permissionType === 'edit' 
+      ? this.userAccount.permissions.can_edit_ontologies
+      : this.userAccount.permissions.can_delete_ontologies;
+    return permissionArray.includes(normalizedId);
+  }
+
+  /**
+   * Check if an ontology ID is editable (from cache, no network call)
+   * @deprecated Use hasPermission(ontologyId, 'edit') instead
+   */
+  canEdit(ontologyId: string): boolean {
+    return this.hasPermission(ontologyId, 'edit');
+  }
+
+  /**
+   * Check if an ontology ID is deletable (from cache, no network call)
+   * @deprecated Use hasPermission(ontologyId, 'delete') instead
+   */
+  canDelete(ontologyId: string): boolean {
+    return this.hasPermission(ontologyId, 'delete');
+  }
+
+  /**
+   * Clear the cache (e.g., on logout)
+   */
+  clear(): void {
+    this.userAccount = null;
+    this.lastFetched = 0;
+    this.fetchPromise = null;
+  }
+
+  /**
+   * Check if cache is stale and needs refresh
+   */
+  isStale(): boolean {
+    return Date.now() - this.lastFetched > this.CACHE_TTL_MS;
+  }
+
+  /**
+   * Check if a refresh is currently in progress
+   */
+  isRefreshing(): boolean {
+    return this.fetchPromise !== null;
+  }
+
+  /**
+   * Get cache status for debugging
+   */
+  getCacheInfo(): { 
+    hasUser: boolean; 
+    editableCount: number; 
+    deletableCount: number; 
+    lastFetched: Date | null; 
+    isStale: boolean 
+  } {
+    return {
+      hasUser: this.userAccount !== null,
+      editableCount: this.userAccount?.permissions.can_edit_ontologies.length ?? 0,
+      deletableCount: this.userAccount?.permissions.can_delete_ontologies.length ?? 0,
+      lastFetched: this.lastFetched ? new Date(this.lastFetched) : null,
+      isStale: this.isStale(),
+    };
+  }
+}
+
+export const userService = new UserService();

@@ -1,11 +1,14 @@
+// Cloudinary configuration for frontend widget
+// Note: This app uses unsigned uploads with upload presets
+// Only cloud name is needed - no API keys required in frontend
+// This is the most secure approach for frontend uploads
 export const cloudinaryConfig = {
-  apiKey: '437525635911614',
-  apiSecret: 'ahL6jaoclt0G92E1KOxQ13gq1uY',
-  cloudName: 'dpy6hjz0c'
+  cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME, // fallback for dev
+  uploadPreset: 'ontologymarketplace', // unsigned upload preset
 };
 
-export const cloudinaryUploadUrl = 'https://api.cloudinary.com/v1_1/dpy6hjz0c/image/upload';
-export const cloudinaryApiUrl = 'https://api.cloudinary.com/v1_1/dpy6hjz0c';
+export const cloudinaryUploadUrl = `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`;
+export const cloudinaryApiUrl = `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}`;
 
 export const uploadPresetConfig = {
   defaultImagePreset: 'ontologymarketplace',

@@ -1,73 +1,113 @@
 # Ontology Marketplace
 
-A modern web application for creating, managing, and using ontologies with Firebase Cloud Functions integration, real-time data management, and comprehensive user dashboards.
+A modern web application for creating, managing, and using ontologies with FastAPI backend integration, real-time data management, and comprehensive user dashboards.
+
+## 📑 Table of Contents
+
+- [Quick Start](#-quick-start)
+  - [Step 1: Clone the Repository and Install Dependencies](#step-1-clone-the-repository-and-install-dependencies)
+  - [Step 2: Create .env File](#step-2-create-env-file)
+  - [Step 3: Firebase Project Setup](#step-3-firebase-project-setup)
+  - [Step 4: Cloudinary Setup (for Image Uploads)](#step-4-cloudinary-setup-for-image-uploads)
+  - [Step 5: Start Development Server](#step-5-start-development-server)
+  - [Step 6: Access Application](#step-6-access-application)
+  - [Available Scripts](#available-scripts)
+- [Features](#-features)
+  - [Core Functionality](#core-functionality)
+  - [Dashboard Features](#dashboard-features)
+  - [User Experience](#user-experience)
+- [Technology Stack](#️-technology-stack)
+  - [Frontend](#frontend)
+  - [Backend](#backend)
+  - [Development Tools](#development-tools)
+- [Project Structure](#-project-structure)
+- [API Endpoints](#-api-endpoints)
+  - [Authentication Endpoints](#authentication-endpoints)
+  - [Ontology Endpoints](#ontology-endpoints)
+  - [Upload Endpoints](#upload-endpoints)
+  - [User Endpoints](#user-endpoints)
+  - [Tags Endpoints](#tags-endpoints)
+  - [Neo4j Integration Endpoints](#neo4j-integration-endpoints)
+- [Usage Guide](#-usage-guide)
+  - [Getting Started](#getting-started)
+  - [Creating Ontologies](#creating-ontologies)
+  - [Using Ontologies](#using-ontologies)
+  - [Neo4j Integration](#neo4j-integration)
+  - [Managing Ontologies](#managing-ontologies)
+- [Security](#-security)
+  - [Authentication](#authentication)
+  - [Data Protection](#data-protection)
+- [Production Deployment](#-production-deployment)
+  - [Pre-deployment Checklist](#pre-deployment-checklist)
+  - [Build for Production](#build-for-production)
+  - [Deployment Options](#deployment-options)
+- [Development](#-development)
+  - [Available Scripts](#available-scripts-1)
+  - [Development Workflow](#development-workflow)
+  - [Local Testing Tips](#local-testing-tips)
+- [Troubleshooting](#-troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Getting Help](#getting-help)
+- [License](#-license)
+- [Contributing](#-contributing)
+  - [Development Guidelines](#development-guidelines)
+- [Project Status](#-project-status)
+  - [Current Features](#current-features)
+  - [Features in Development](#features-in-development)
 
 ## 🚀 Quick Start
 
-### Step 1: Clone the Repository
+### Step 1: Clone the Repository and Install Dependencies
 ```bash
 git clone <repository-url>
-cd ontology-marketplace
+cd ontology-market-place-frontend
 npm install
 ```
 
-### Step 2: Firebase Project Setup
+**Note:** This will install all dependencies including React, Vite, Firebase, and Tailwind CSS.
 
-#### 2.1 Create Firebase Project
+### Step 2: Create .env File
+```bash
+# Create .env file in the root directory
+touch .env
+```
+
+Add the following environment variables:
+```env
+# Firebase Configuration (get from Firebase Console)
+VITE_FIREBASE_API_KEY=your_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+
+# Backend API Gateway URL
+VITE_BACKEND_BASE_URL=your_api_gateway_base_url
+
+# Cloudinary Configuration (optional - for image uploads)
+VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
+
+# Default Ontology Image (optional)
+VITE_DEFAULT_ONTOLOGY_IMAGE_URL=your_default_image_url
+```
+
+### Step 3: Firebase Project Setup
+
+#### 3.1 Create Firebase Project
 1. Go to [Firebase Console](https://console.firebase.google.com/)
 2. Click "Create a project"
-3. Enter project name: `ontology-marketplace-efv1v3`
+3. Enter project name: `your_project_name_id`
 4. Enable Google Analytics (optional)
 5. Click "Create project"
 
-#### 2.2 Enable Required Services
+#### 3.2 Enable Required Services
 
 **Authentication**
 1. Go to "Authentication" → "Sign-in method"
 2. Enable "Email/Password" provider
 3. Enable "Google" provider
 4. Add authorized domains: `localhost` (for development)
-
-**Firestore Database**
-1. Go to "Firestore Database" → "Create database"
-2. Choose "Start in test mode"
-3. Select location: `us-central1`
-4. Click "Done"
-
-**Cloud Functions**
-1. Go to "Functions" → "Get started"
-2. Choose "Blaze" plan (required for external API calls)
-3. Select Node.js 20 runtime
-4. Choose location: `us-central1`
-
-### Step 3: Environment Configuration
-
-#### 3.1 Create Environment File
-```bash
-# Create .env file
-cp .env.example .env
-```
-
-#### 3.2 Add Firebase Configuration
-```env
-# Firebase Configuration
-VITE_FIREBASE_API_KEY=437525635911614
-VITE_FIREBASE_AUTH_DOMAIN=ontology-marketplace-efv1v3.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=ontology-marketplace-efv1v3
-VITE_FIREBASE_STORAGE_BUCKET=ontology-marketplace-efv1v3.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id_here
-VITE_FIREBASE_APP_ID=your_app_id_here
-
-# Application Settings
-VITE_APP_ENV=development
-VITE_API_BASE_URL=https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net
-```
-
-**Get Firebase Config:**
-1. Go to Firebase Console → Project Settings
-2. Scroll down to "Your apps"
-3. Click "Add app" → "Web"
-4. Copy the configuration values
 
 ### Step 4: Cloudinary Setup (for Image Uploads)
 
@@ -77,62 +117,71 @@ VITE_API_BASE_URL=https://us-central1-ontology-marketplace-efv1v3.cloudfunctions
 3. Note your cloud name, API key, and API secret
 
 #### 4.2 Configure Cloudinary
-The application is already configured with:
-- **Cloud Name**: `dpy6hjz0c`
-- **Upload Preset**: `ontologymarketplace`
-- **API Key**: `437525635911614`
-- **API Secret**: `ahL6jaoclt0G92E1KOxQ13gq1uY`
-
-### Step 5: Deploy Cloud Functions
-
-#### 5.1 Install Firebase CLI
-```bash
-npm install -g firebase-tools
+Add your Cloudinary cloud name to the `.env` file:
+```env
+# Cloudinary Configuration (get from your Cloudinary dashboard)
+# Only cloud name is needed - app uses unsigned upload with preset
+VITE_CLOUDINARY_CLOUD_NAME=your_cloud_name
 ```
 
-#### 5.2 Login and Initialize
+**Important Security Notes**: 
+- Never commit API keys or secrets to version control
+- `.env` is already in `.gitignore`
+- This app uses **unsigned uploads with upload presets** (no API keys needed in frontend)
+- The upload preset handles all security on the server-side
+- Much more secure than exposing API keys to the browser!
+
+### Step 5: Start Development Server
+
 ```bash
-# Login to Firebase
-firebase login
-
-# Set your project
-firebase use ontology-marketplace-efv1v3
-
-# Deploy Cloud Functions
-firebase deploy --only functions
-```
-
-### Step 6: Start Development Server
-```bash
+# Start the Vite development server
 npm run dev
 ```
 
-### Step 7: Access Application
-- Open http://localhost:5173
-- Sign up or log in with Firebase
+The application will be available at:
+- **Local URL**: http://localhost:5173
+- Vite will automatically open your browser
+
+### Step 6: Access Application
+- Sign up or log in with Firebase Authentication
 - Start creating and managing ontologies!
+- All data operations go through the FastAPI backend
+
+### Available Scripts
+```bash
+npm run dev      # Start development server (with hot reload)
+npm run build    # Build for production
+npm run preview  # Preview production build locally
+npm run lint     # Run ESLint to check code quality
+```
 
 ## 🎯 Features
 
 ### Core Functionality
-- **Create Ontologies**: Add new ontologies with metadata and thumbnails
+- **Create Ontologies**: Add new ontologies with metadata, thumbnails, and tags
 - **Import from URL**: Import ontologies from external sources (OWL format only)
 - **Search & Filter**: Find ontologies by name, description, tags, or status
-- **User Management**: Complete authentication and profile system
-- **Database Integration**: Upload ontologies to databases like Neo4j
+- **User Management**: Complete authentication and profile system with permissions
+- **Neo4j Integration**: Connect to Neo4j databases, upload ontologies, and query graph data
+- **Tag Management**: Dynamic tagging system with tag editor and filtering
+- **Permission System**: User-specific permissions for editing and deleting ontologies
+- **Ontology Details**: View and edit ontology metadata with permission-based access
 
 ### Dashboard Features
 - **Real-time Overview**: View all your ontologies at a glance
 - **Categories**: Filter by All, Recently Modified, Public, Private
-- **Tags**: Dynamic tagging system for easy organization
+- **Tags**: Dynamic tagging system for easy organization with tag-based filtering
 - **Thumbnail Support**: Visual representation with automatic fallbacks
+- **Search**: Real-time search across ontology names and descriptions
 - **Responsive Design**: Works on desktop, tablet, and mobile
 
 ### User Experience
 - **Modern UI**: Clean, intuitive interface with Tailwind CSS
 - **Loading States**: Proper feedback during operations
 - **Error Handling**: Clear error messages and fallbacks
-- **Accessibility**: Keyboard navigation and screen reader support
+- **Hash-based Navigation**: URL hash routing for deep linking and browser history
+- **Permission-based Access**: Edit and delete permissions managed per user
+- **Tag Management**: Visual tag editor with dialog for managing ontology tags
 
 ## 🛠️ Technology Stack
 
@@ -143,10 +192,11 @@ npm run dev
 - **Lucide React** for icons
 
 ### Backend
-- **Firebase Authentication** for user management
-- **Firebase Cloud Functions** for API endpoints
-- **Firestore** for data storage
-- **Cloudinary** for image uploads
+- **Firebase Authentication** for user management and tokens
+- **FastAPI Backend** via Zuplo API Gateway for data operations
+- **Backend Storage** (handled by FastAPI backend)
+- **Cloudinary** for image uploads (unsigned upload with presets)
+- **Neo4j** integration for graph database operations (connect, query, upload)
 
 ### Development Tools
 - **ESLint** for code quality
@@ -158,75 +208,182 @@ npm run dev
 ```
 src/
 ├── components/          # Reusable UI components
-│   ├── OntologySelector.tsx    # Ontology selection dropdown
-│   ├── ThumbnailUpload.tsx     # Image upload component
-│   ├── Toggle.tsx              # Toggle switch component
-│   └── UserProfileSettings.tsx # User profile management
+│   ├── CloudinaryUploadWidget.tsx    # Cloudinary upload widget wrapper
+│   ├── CommentSystem.tsx             # Comment system (currently disabled)
+│   ├── DemoLoginPanel.tsx            # Demo authentication panel
+│   ├── FileDropZone.tsx              # File drag-and-drop zone
+│   ├── GraphVisualization.tsx        # Neo4j graph visualization
+│   ├── OntologyCard.tsx              # Ontology card display component
+│   ├── OntologyDetailsForm.tsx       # Ontology details editing form
+│   ├── OntologyForm.tsx              # Create/edit ontology form
+│   ├── OntologyMixPanel.tsx          # Ontology mixing panel
+│   ├── OntologySelector.tsx          # Ontology selection dropdown
+│   ├── SimpleThumbnailUpload.tsx     # Simple thumbnail upload
+│   ├── TagManagerDialog.tsx          # Tag management dialog
+│   ├── ThumbnailUpload.tsx            # Image upload component
+│   ├── Toggle.tsx                     # Toggle switch component
+│   └── UserProfileSettings.tsx        # User profile management
 ├── views/               # Main application views
-│   ├── DashboardView.tsx       # Main dashboard
-│   ├── LoginView.tsx           # Authentication
-│   ├── NewOntologyView.tsx     # Create new ontology
-│   ├── UseOntologyView.tsx     # Use/upload ontologies
-│   ├── EditOntologyView.tsx    # Edit existing ontologies
-│   └── OntologyDetailsView.tsx # View ontology details
+│   ├── DashboardView.tsx             # Main dashboard with search/filter
+│   ├── LoginView.tsx                 # Authentication view
+│   ├── NewOntologyView.tsx           # Create new ontology
+│   ├── OntologyDetailsView.tsx       # View/edit ontology details
+│   ├── ProfileView.tsx               # User profile view
+│   └── UseOntologyView.tsx           # Use/upload ontologies to databases
 ├── services/            # Business logic and API services
-│   ├── authService.ts          # Firebase authentication
-│   ├── ontologyService.ts      # Ontology API operations
-│   ├── cloudinaryService.ts    # Image upload service
-│   └── simpleUploadService.ts  # Simple upload service
+│   ├── authService.ts                # Firebase authentication
+│   ├── backendSignedUploadService.ts # Backend signed upload service
+│   ├── cloudinaryPresetService.ts    # Cloudinary preset management
+│   ├── cloudinaryService.ts          # Image upload service
+│   ├── cloudinaryWidgetService.ts    # Cloudinary widget service
+│   ├── demoAuthService.ts            # Demo authentication service
+│   ├── neo4jService.ts               # Neo4j database integration
+│   ├── ontologyService.ts           # Ontology API operations
+│   ├── signedUploadService.ts       # Signed upload service
+│   ├── simpleUploadService.ts       # Simple upload service
+│   ├── unsignedUploadService.ts     # Unsigned upload service
+│   └── userService.ts                # User account and permissions
 ├── config/              # Configuration files
-│   ├── firebase.ts             # Firebase configuration
-│   ├── firebaseFunctions.ts    # Cloud Functions URLs
-│   └── cloudinary.ts           # Cloudinary configuration
-└── App.tsx              # Main application component
-
-functions/               # Firebase Cloud Functions
-└── index.js             # Cloud Functions implementation
+│   ├── firebase.ts                   # Firebase configuration
+│   ├── backendApi.ts                 # Backend API configuration
+│   └── cloudinary.ts                 # Cloudinary configuration
+└── App.tsx              # Main application component with routing
 ```
 
 ## 🔧 API Endpoints
 
-### Cloud Functions URLs
-All functions use the new cloud functions URL pattern:
-```
-https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net/
-```
+### Backend API Gateway
+All API calls go through an API Gateway (Zuplo), the base URL is set in the `.env` file as `VITE_BACKEND_BASE_URL`.
 
-### Available Endpoints
+### Authentication Endpoints
+
+#### Verify Token
+- **URL**: `/auth/verify-token`
+- **Method**: GET
+- **Auth**: Bearer token required (Firebase ID token)
+
+### Ontology Endpoints
 
 #### Search Ontologies
 - **URL**: `/search_ontologies`
 - **Method**: GET
-- **Auth**: Bearer token required
+- **Auth**: Bearer token required (Firebase ID token)
 - **Returns**: List of user's ontologies and public ontologies
 
+#### Get Ontology by ID
+- **URL**: `/api/ontologies/{id}`
+- **Method**: GET
+- **Auth**: Bearer token required (Firebase ID token)
+- **Returns**: Single ontology details
+
 #### Add Ontology
-- **URL**: `/add_ontology`
+- **URL**: `/add_ontologies`
 - **Method**: POST
-- **Auth**: Bearer token required
-- **Payload**: Ontology data (name, description, properties)
-- **Returns**: Created ontology with ID
+- **Auth**: Bearer token required (Firebase ID token)
+- **Payload**: Array of ontology objects `[{name, description, properties, ...}]`
+- **Returns**: Created ontology(ies) with ID(s)
 
-#### Process Ontology URL
-- **URL**: `/process_ontology_url`
-- **Method**: POST
-- **Auth**: Bearer token required
-- **Payload**: URL to process
-- **Returns**: Processed ontology data
+#### Update Ontology
+- **URL**: `/update_ontology/{id}`
+- **Method**: PUT
+- **Auth**: Bearer token required (Firebase ID token)
+- **Payload**: Ontology updates with ID
+- **Returns**: Updated ontology
 
-#### Upload to Database
-- **URL**: `/upload_ontology_to_database`
+#### Delete Ontology
+- **URL**: `/delete_ontologies`
+- **Method**: DELETE
+- **Auth**: Bearer token required (Firebase ID token)
+- **Payload**: Array of ontology IDs `[id1, id2, ...]`
+- **Returns**: Deletion confirmation
+
+### Upload Endpoints
+
+#### Upload Ontology from URL
+- **URL**: `/api/ontologies/upload-from-url`
 - **Method**: POST
 - **Auth**: Bearer token required
-- **Payload**: ontologyId, targetDatabase, mergeStrategy
+- **Payload**: `{url, ...metadata}`
+- **Returns**: Uploaded ontology data
+
+#### Validate Ontology URL
+- **URL**: `/api/ontologies/validate-url`
+- **Method**: POST
+- **Auth**: Bearer token required
+- **Payload**: `{url}`
+- **Returns**: Validation result
+
+#### Upload Ontology (Proxy)
+- **URL**: `/upload_ontology`
+- **Method**: POST
+- **Auth**: Bearer token required
+- **Payload**: `{uri, username, password, database, ttl_url}`
 - **Returns**: Upload result
 
-#### Generate Cloudinary Signature
-- **URL**: `/generate_cloudinary_signature`
+### User Endpoints
+
+#### Get User
+- **URL**: `/get_user`
+- **Method**: GET
+- **Auth**: Bearer token required (Firebase ID token)
+- **Returns**: User account data with permissions `{is_public, permissions: {can_edit_ontologies, can_delete_ontologies}}`
+
+#### Update User
+- **URL**: `/update_user`
+- **Method**: PUT/PATCH
+- **Auth**: Bearer token required
+- **Payload**: User update data
+- **Returns**: Updated user data
+
+### Tags Endpoints
+
+#### Get Tags
+- **URL**: `/get_tags`
+- **Method**: GET
+- **Auth**: Bearer token optional (public tags available)
+- **Returns**: List of available tags
+
+### Neo4j Integration Endpoints
+
+#### Upload Ontology to Neo4j
+- **URL**: `/api/ontologies/{ontologyId}/upload-to-neo4j`
 - **Method**: POST
 - **Auth**: Bearer token required
-- **Payload**: Upload parameters
-- **Returns**: Signature data for secure uploads
+- **Payload**: `{mergeStrategy?: 'merge' | 'replace', ...options}`
+- **Returns**: Upload result
+
+#### Connect to Neo4j
+- **URL**: `/api/neo4j/connect`
+- **Method**: POST
+- **Auth**: Bearer token required
+- **Payload**: `{uri, username, password}`
+- **Returns**: Connection status
+
+#### Disconnect from Neo4j
+- **URL**: `/api/neo4j/disconnect`
+- **Method**: POST
+- **Auth**: Bearer token required
+- **Returns**: Disconnection confirmation
+
+#### Execute Neo4j Query
+- **URL**: `/api/neo4j/query`
+- **Method**: POST
+- **Auth**: Bearer token required
+- **Payload**: `{query: string, params?: object}`
+- **Returns**: Query results
+
+#### Get Neo4j Graph Data
+- **URL**: `/api/neo4j/graph`
+- **Method**: GET
+- **Auth**: Bearer token required
+- **Query Params**: `limit?: number`
+- **Returns**: Graph data `{nodes, relationships}`
+
+#### Get Neo4j Database Info
+- **URL**: `/api/neo4j/info`
+- **Method**: GET
+- **Auth**: Bearer token required
+- **Returns**: Database information
 
 ## 🎮 Usage Guide
 
@@ -249,69 +406,56 @@ https://us-central1-ontology-marketplace-efv1v3.cloudfunctions.net/
 4. Click "CREATE ONTOLOGY"
 
 ### Using Ontologies
-1. Go to "Use Ontology" view
+1. Go to "Use Ontology" view (accessible from navigation)
 2. Select an ontology from the dropdown
-3. Choose upload strategy (merge or replace)
-4. Click "UPLOAD" to send to target database
+3. Choose upload strategy (merge or replace) using the toggle
+4. Click "UPLOAD" to send ontology to Neo4j database
+5. Preview ontology details before uploading
+
+### Neo4j Integration
+1. **Connect to Neo4j**: Use the backend API to connect with credentials
+2. **Upload Ontologies**: Upload selected ontologies to Neo4j graph database
+3. **Query Graph Data**: Execute Cypher queries through the backend API
+4. **Visualize Graphs**: View graph data (nodes and relationships)
+5. **Database Info**: Get database statistics and information
 
 ### Managing Ontologies
-- **View**: Click on ontology cards to see details
-- **Edit**: Modify ontology properties and metadata
-- **Delete**: Remove ontologies with confirmation
+- **View**: Click on ontology cards to see details (hash-based navigation: `#ontology-details/{id}`)
+- **Edit**: Modify ontology properties and metadata (permission-based)
+- **Delete**: Remove ontologies with confirmation (permission-based)
 - **Search**: Use the search bar to find specific ontologies
-- **Filter**: Use categories and tags to organize
+- **Filter**: Use categories (All, Recently Modified, Public, Private) and tags to organize
+- **Tags**: Manage tags using the tag manager dialog
+- **Permissions**: View and edit permissions are managed through the user service
 
 ## 🔒 Security
 
 ### Authentication
 - Firebase Authentication with email/password and Google OAuth
-- Secure token-based API authentication
+- Secure token-based API authentication (Firebase ID tokens)
 - Protected routes and user-specific data access
 
 ### Data Protection
 - User-specific ontology access
 - Public/private ontology controls
-- Secure Cloud Functions with authentication
+- Permission-based editing and deletion (managed via `/get_user` endpoint)
+- Secure backend API with Firebase token validation
+- Automatic token refresh before expiration
 - Environment variables for sensitive data
-
-### Firestore Security Rules
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Users can read/write their own data
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Ontologies: users can read public ones, write their own
-    match /ontologies/{ontologyId} {
-      allow read: if resource.data.is_public == true || 
-                   (request.auth != null && resource.data.ownerId == request.auth.uid);
-      allow write: if request.auth != null && 
-                    (resource.data.ownerId == request.auth.uid || 
-                     request.resource.data.ownerId == request.auth.uid);
-    }
-  }
-}
-```
+- Cloudinary unsigned uploads (no API keys in frontend)
 
 ## 🚀 Production Deployment
 
 ### Pre-deployment Checklist
-- [ ] Firebase project configured with Blaze plan
-- [ ] Cloud Functions deployed and tested
+- [ ] Firebase Authentication enabled
+- [ ] Backend API endpoint configured
 - [ ] Environment variables set for production
-- [ ] Firestore security rules updated
 - [ ] CORS settings configured for production domains
 
 ### Build for Production
 ```bash
 # Build frontend
 npm run build
-
-# Deploy functions
-firebase deploy --only functions
 
 # Deploy hosting (optional)
 firebase deploy --only hosting
@@ -333,10 +477,6 @@ firebase deploy --only hosting
 4. Add environment variables
 5. Deploy automatically
 
-#### Firebase Hosting
-1. Initialize hosting: `firebase init hosting`
-2. Configure `firebase.json`
-3. Deploy: `firebase deploy --only hosting`
 
 ## 🧪 Development
 
@@ -349,19 +489,18 @@ npm run lint         # Run ESLint
 ```
 
 ### Development Workflow
-1. **Local Development**: `npm run dev`
-2. **Function Development**: `firebase emulators:start --only functions`
-3. **Testing**: Test all features with real Firebase services
-4. **Deployment**: Deploy functions and test in production
+1. **Start Dev Server**: Run `npm run dev` to start Vite dev server on http://localhost:5173
+2. **Hot Reload**: Vite automatically reloads when you make changes to source files
+3. **Testing**: Test all features with real backend API
+4. **Backend Integration**: All API calls go through Zuplo Gateway with Firebase auth tokens
+5. **Build**: Run `npm run build` to create production build in `dist/` folder
+6. **Preview**: Run `npm run preview` to preview production build locally
 
-### Firebase Commands
-```bash
-firebase login                    # Login to Firebase
-firebase use your-project-id      # Set project
-firebase deploy --only functions  # Deploy functions
-firebase functions:log            # View function logs
-firebase emulators:start          # Start local emulators
-```
+### Local Testing Tips
+- Open browser DevTools to see API requests and responses
+- Check Network tab to verify backend API calls
+- Verify Firebase Authentication is working correctly
+- Monitor console for any errors or warnings
 
 ## 🆘 Troubleshooting
 
@@ -374,13 +513,13 @@ firebase emulators:start          # Start local emulators
 2. Verify Authentication providers are enabled
 3. Add localhost to authorized domains
 
-#### Cloud Functions Errors
+#### Backend API Errors
 **Problem**: API calls failing
 **Solution**:
-1. Check function logs: `firebase functions:log`
-2. Verify Blaze plan is enabled
-3. Check CORS configuration
-4. Ensure functions are deployed
+1. Check backend API logs
+2. Verify Firebase Authentication token is valid
+3. Check CORS configuration on Zuplo Gateway
+4. Verify backend API endpoint is accessible
 
 #### Build Errors
 **Problem**: `npm run build` fails
@@ -398,7 +537,7 @@ firebase emulators:start          # Start local emulators
 
 ### Getting Help
 1. Check browser console for errors
-2. View Firebase function logs
+2. View backend API response in Network tab
 3. Verify environment variables
 4. Test in different browser/incognito mode
 
@@ -424,7 +563,7 @@ This project is licensed under the MIT License.
 ## 📊 Project Status
 
 ✅ **Production Ready**
-- Firebase Cloud Functions integration
+- FastAPI backend via Zuplo Gateway
 - Real-time dashboard with filtering
 - Comprehensive user management
 - Responsive design
@@ -433,12 +572,20 @@ This project is licensed under the MIT License.
 - Database integration
 
 ### Current Features
-- **Dashboard**: Complete ontology management interface
-- **API Integration**: Firebase Cloud Functions backend
-- **User Management**: Full authentication and profile system
-- **Ontology Operations**: Create, read, update, delete
-- **Search & Filter**: Advanced filtering and search capabilities
-- **Image Upload**: Cloudinary integration for thumbnails
-- **Database Upload**: Upload ontologies to external databases
+- **Dashboard**: Complete ontology management interface with search, filters, and categories
+- **API Integration**: FastAPI backend via Zuplo API Gateway with full CRUD operations
+- **User Management**: Full authentication and profile system (Firebase Auth) with permissions
+- **Ontology Operations**: Create, read, update, delete with permission-based access
+- **Search & Filter**: Advanced filtering by category, tags, and text search
+- **Tag Management**: Tag editor and tag manager dialog for organizing ontologies
+- **Image Upload**: Cloudinary integration for thumbnails (unsigned upload with presets)
+- **Neo4j Integration**: Connect to Neo4j, upload ontologies, query graph data, and visualize graphs
+- **Hash-based Routing**: URL hash navigation for deep linking and browser history
+- **Permission System**: User-specific edit and delete permissions managed via backend
+- **Ontology Details View**: Comprehensive view with inline editing capabilities
 
-**Ready to use**: Clone, configure Firebase, deploy functions, and run `npm run dev`!
+### Features in Development
+- **Comment System**: Comment system component exists but is currently disabled/hidden
+- **Graph Visualization**: Basic graph visualization component available
+
+**Ready to use**: Clone, configure environment variables, and run `npm run dev`!

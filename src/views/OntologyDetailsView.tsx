@@ -1,20 +1,52 @@
-import React, { useState, useEffect } from 'react';
-import { GraphVisualization } from '../components/GraphVisualization';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { CommentSystem } from '../components/CommentSystem';
 import { ontologyService, Ontology } from '../services/ontologyService';
+import { BackendApiClient } from '../config/backendApi';
+import { cloudinaryService } from '../services/cloudinaryService';
+import { userService } from '../services/userService';
+import { authService } from '../services/authService';
+import { TagManagerDialog } from '../components/TagManagerDialog';
 
 interface OntologyDetailsViewProps {
   ontologyId: string | null;
-  onNavigate: (view: string, ontologyId?: string) => void;
+  onNavigate?: (view: string, ontologyId?: string) => void;
 }
 
 export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   ontologyId,
   onNavigate
 }) => {
+  const defaultImageUrl = (import.meta.env as any).VITE_DEFAULT_ONTOLOGY_IMAGE_URL || (import.meta.env as any).DEFAULT_ONTOLOGY_IMAGE_URL || '';
   const [ontology, setOntology] = useState<Ontology | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [canEdit, setCanEdit] = useState(false);
+  const [editable, setEditable] = useState<Ontology | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Dialog state
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadUri, setUploadUri] = useState('');
+  const [uploadUsername, setUploadUsername] = useState('neo4j');
+  const [uploadPassword, setUploadPassword] = useState('');
+  const [uploadDatabase, setUploadDatabase] = useState('neo4j');
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Tag editor state
+  const [editTagIndex, setEditTagIndex] = useState<number | null>(null);
+  const [editTagValue, setEditTagValue] = useState('');
+  // Tag dialog state
+  const [showTagDialog, setShowTagDialog] = useState(false);
+  const [selectedDialogTags, setSelectedDialogTags] = useState<string[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   useEffect(() => {
     const fetchOntology = async () => {
@@ -29,7 +61,10 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
         const result = await ontologyService.searchOntologies();
         
         if (result.success && result.data) {
-          const foundOntology = result.data.find(ont => ont.id === ontologyId);
+          // Find by UUID first, then fallback to ID for backward compatibility
+          const foundOntology = result.data.find(ont => 
+            (ont as any).uuid === ontologyId || ont.id === ontologyId
+          );
           if (foundOntology) {
             setOntology(foundOntology);
           } else {
@@ -49,15 +84,280 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     fetchOntology();
   }, [ontologyId]);
 
-  const handleUpload = () => {
-    console.log('Uploading ontology to database:', ontologyId);
-    // Navigate to use ontology view for database upload
-    onNavigate('use-ontology', ontologyId || undefined);
+  // Check permissions using cached user account data from single /get_user call
+  useEffect(() => {
+    const checkPermissionsAsync = async () => {
+      if (!ontologyId) {
+        setCanEdit(false);
+        setCanDelete(false);
+        setPermissionsLoading(false);
+        return;
+      }
+      
+      const ontologyUuid = (ontology && (ontology as any).uuid) || ontologyId;
+      const currentUser = authService.getCurrentUser();
+      
+      // Optimistic check: if user owns the ontology, assume they can edit immediately
+      const isOwner = currentUser && ontology?.ownerId && ontology.ownerId === currentUser.id;
+      
+      // Set optimistic permissions IMMEDIATELY for owners (before checking cache)
+      if (isOwner) {
+        setCanEdit(true);
+        setCanDelete(true);
+      }
+      
+      // Helper to check permissions from userAccount
+      const checkPermissions = (userAccount: ReturnType<typeof userService.getUserAccount>): { canEdit: boolean; canDelete: boolean } => {
+        if (!userAccount) return { canEdit: false, canDelete: false };
+        const normalizedId = ontologyUuid.trim();
+        return {
+          canEdit: Boolean(userAccount.permissions.can_edit_ontologies.includes(normalizedId) || isOwner),
+          canDelete: Boolean(userAccount.permissions.can_delete_ontologies.includes(normalizedId) || isOwner),
+        };
+      };
+      
+      let userAccount = userService.getUserAccount();
+      const needsRefresh = !userAccount || userService.isStale();
+      const isRefreshing = userService.isRefreshing();
+      
+      // If cache needs refresh OR a refresh is already in progress, await it FIRST
+      // This ensures we wait for App.tsx's refresh if it's already running
+      if (needsRefresh || isRefreshing) {
+        setPermissionsLoading(true);
+        try {
+          // Await refresh - this will either:
+          // 1. Start a new refresh if none in progress
+          // 2. Wait for the in-progress refresh from App.tsx if one exists
+          // 3. Return immediately if cache is fresh (though we check this above)
+          await userService.refresh();
+          // After refresh completes, get the updated account
+          userAccount = userService.getUserAccount();
+        } catch (error) {
+          console.error('Failed to refresh user account:', error);
+          // On error, keep optimistic permissions for owners
+          if (!isOwner) {
+            setCanEdit(false);
+            setCanDelete(false);
+          }
+          setPermissionsLoading(false);
+          return;
+        }
+      }
+      
+      // Now check permissions with the (refreshed) cache
+      const permissions = checkPermissions(userAccount);
+      setCanEdit(permissions.canEdit);
+      setCanDelete(permissions.canDelete);
+      setPermissionsLoading(false);
+    };
+    
+    checkPermissionsAsync();
+  }, [ontologyId, ontology]);
+
+  // Initialize editable copy when ontology loads
+  useEffect(() => {
+    if (ontology) {
+      setEditable({
+        ...ontology,
+        properties: {
+          source_url: ontology.properties?.source_url || '',
+          image_url: ontology.properties?.image_url || '',
+          is_public: !!ontology.properties?.is_public,
+        },
+      });
+    }
+  }, [ontology]);
+
+  const isDirty = useMemo(() => {
+    if (!ontology || !editable) return false;
+    const orig = {
+      name: ontology.name,
+      description: ontology.description,
+      source_url: ontology.properties?.source_url || '',
+      image_url: ontology.properties?.image_url || '',
+      is_public: !!ontology.properties?.is_public,
+      node_count: ontology.node_count ?? null,
+      relationship_count: ontology.relationship_count ?? null,
+      tags: ontology.tags || [],
+    };
+    const cur = {
+      name: editable.name,
+      description: editable.description,
+      source_url: editable.properties?.source_url || '',
+      image_url: editable.properties?.image_url || '',
+      is_public: !!editable.properties?.is_public,
+      node_count: editable.node_count ?? null,
+      relationship_count: editable.relationship_count ?? null,
+      tags: editable.tags || [],
+    };
+    // Dirty if fields changed or a new image file was chosen
+    return JSON.stringify(orig) !== JSON.stringify(cur) || !!selectedImageFile;
+  }, [ontology, editable, selectedImageFile]);
+
+  const handleFieldChange = (field: 'name' | 'description', value: string) => {
+    if (!editable) return;
+    setEditable({ ...editable, [field]: value });
   };
 
-  const handleEdit = () => {
-    onNavigate('edit-ontology', ontologyId || undefined);
+  const handlePropChange = (field: 'source_url' | 'image_url' | 'is_public', value: string | boolean) => {
+    if (!editable) return;
+    setEditable({
+      ...editable,
+      properties: {
+        ...editable.properties,
+        [field]: value as any,
+      },
+    });
   };
+
+  const handleImageSelect = (file: File) => {
+    if (!file) return;
+    // Hold in memory and preview; upload will happen on Save
+    setSelectedImageFile(file);
+    const url = URL.createObjectURL(file);
+    setSelectedImagePreviewUrl(url);
+  };
+
+  const clearSelectedImage = () => {
+    if (selectedImagePreviewUrl) {
+      URL.revokeObjectURL(selectedImagePreviewUrl);
+    }
+    setSelectedImagePreviewUrl(null);
+    setSelectedImageFile(null);
+    // Reset the file input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editable || !ontology?.id) return;
+    setIsSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+    try {
+      // Get the ontology UUID (same logic as in checkPermission)
+      const ontologyUuid = (ontology as any).uuid || ontology.id;
+      
+      // If a new image file was chosen, upload it first
+      let imageUrlToSave = editable.properties?.image_url || '';
+      if (selectedImageFile) {
+        const uploadRes = await cloudinaryService.uploadImage(selectedImageFile, {
+          preset: 'ontologymarketplace',
+          folder: 'ontology-images',
+          tags: ['ontology', 'image']
+        });
+        if (!uploadRes.success || !uploadRes.url) {
+          throw new Error(uploadRes.error || 'Image upload failed');
+        }
+        imageUrlToSave = uploadRes.url;
+      }
+
+      const updates: any = {
+        // Top-level fields expected by backend
+        name: editable.name ?? ontology.name,
+        description: editable.description ?? ontology.description,
+        source_url: (editable.properties?.source_url ?? ontology.properties?.source_url) || '',
+        image_url: (imageUrlToSave ?? ontology.properties?.image_url) || '',
+        is_public: (
+          editable.properties?.is_public ?? ontology.properties?.is_public ?? false
+        ),
+        node_count: editable.node_count ?? ontology.node_count ?? null,
+        relationship_count: editable.relationship_count ?? ontology.relationship_count ?? null,
+        score: ontology.score ?? null,
+        tags: editable.tags ?? ontology.tags ?? [],
+      };
+
+      const result = await BackendApiClient.updateOntology(ontologyUuid, updates);
+      if ((result as any)?.success === false) {
+        throw new Error((result as any)?.error || 'Failed to update ontology');
+      }
+      // Refresh user account cache after successful update (permissions may have changed)
+      userService.refresh().catch((error) => {
+        console.error('Failed to refresh user account after update:', error);
+      });
+      // Refresh local state
+      setOntology({ ...editable, id: ontology.id, properties: { ...editable.properties, image_url: imageUrlToSave } });
+      // Clear selected image state after successful save
+      clearSelectedImage();
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (e) {
+      console.error('Save failed:', e);
+      const msg = e instanceof Error ? e.message : 'Failed to update ontology';
+      setSaveError(msg);
+      setTimeout(() => setSaveError(null), 4000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleUpload = () => {
+    setShowUploadDialog(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!ontology) return;
+    const ontologyUuid = (ontology as any).uuid || ontology.id;
+    if (!ontologyUuid) return;
+    setIsDeleting(true);
+    try {
+      await BackendApiClient.deleteOntology(ontologyUuid);
+      alert('Ontology deleted successfully.');
+      // After deletion, navigate back to dashboard if handler provided
+      if (typeof (typeof onNavigate !== 'undefined' && onNavigate) === 'function') {
+        // @ts-ignore - onNavigate is optional in props
+        onNavigate && onNavigate('dashboard');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to delete ontology');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
+  const handleDialogCancel = () => {
+    setShowUploadDialog(false);
+    setUploadUri('');
+    setUploadPassword('');
+  };
+
+  const handleDialogUpload = async () => {
+    if (!uploadUri || !uploadPassword || !ontology) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const payload = {
+        neo4j_uri: uploadUri,
+        neo4j_username: uploadUsername,
+        neo4j_password: uploadPassword,
+        neo4j_database: uploadDatabase,
+        source_url: ontology.properties?.source_url || ontology.file_url || ''
+      };
+
+      await BackendApiClient.request('/upload_ontology', {
+        method: 'POST',
+        body: payload,
+      });
+
+      alert('Ontology uploaded successfully!');
+      setShowUploadDialog(false);
+      setUploadUri('');
+      setUploadPassword('');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to upload ontology');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Deprecated: Editing now happens inline via Save
 
   if (loading) {
     return (
@@ -78,81 +378,103 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
         <div className="max-w-7xl mx-auto">
           <div className="text-center py-12">
             <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Ontology</h3>
-            <p className="text-sm text-gray-600 mb-6">{error || 'Ontology not found'}</p>
-            <button
-              onClick={() => onNavigate('dashboard')}
-              className="bg-blue-600 text-white px-6 py-3 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-            >
-              Back to Dashboard
-            </button>
+            <p className="text-sm text-gray-600">{error || 'Ontology not found'}</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Extract tags from ontology description and properties
-  const extractTags = (ontology: Ontology): string[] => {
-    const tags: string[] = [];
-    
-    // Add tags based on description content
-    const description = ontology.description.toLowerCase();
-    if (description.includes('medical') || description.includes('healthcare')) tags.push('medical');
-    if (description.includes('e-commerce') || description.includes('product')) tags.push('e-commerce');
-    if (description.includes('academic') || description.includes('research')) tags.push('academic');
-    if (description.includes('technology') || description.includes('tech')) tags.push('technology');
-    
-    // Add source-based tags
-    if (ontology.properties?.source_url) {
-      const url = ontology.properties.source_url.toLowerCase();
-      if (url.includes('github')) tags.push('open-source');
-      if (url.includes('owl') || url.includes('rdf')) tags.push('semantic-web');
-    }
-    
-    return tags.length > 0 ? tags : ['general'];
-  };
-
-  const tags = extractTags(ontology);
+  // Tags are supplied by backend per ontology (ontology.tags)
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header with back button */}
-        <div className="mb-6">
-          <button
-            onClick={() => onNavigate('dashboard')}
-            className="flex items-center text-blue-600 hover:text-blue-800 font-medium mb-4"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Dashboard
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900">{ontology.name}</h1>
-        </div>
+        {/* Header */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Details Panel */}
-          <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">DETAILS</h2>
-            
-            <div className="space-y-6">
+        {/* Details Panel */}
+        <div className="bg-white rounded-lg shadow-sm border p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6"></h2>
+          
+          {/* Image between DETAILS title and Title field */}
+          <div className="mb-2 max-h-48 flex items-center justify-center">
+            {selectedImagePreviewUrl ? (
+              <img
+                src={selectedImagePreviewUrl}
+                alt="Selected preview"
+                className="w-full h-full max-h-48 object-contain rounded-lg"
+              />
+            ) : (
+              ((editable && editable.properties && editable.properties.image_url && editable.properties.image_url.trim()) || defaultImageUrl) ? (
+                <img
+                  src={(editable && editable.properties && editable.properties.image_url && editable.properties.image_url.trim()) ? (editable as any).properties.image_url : defaultImageUrl}
+                  alt={(editable && editable.name) || 'Ontology image'}
+                  className="w-full h-full max-h-48 object-contain rounded-lg"
+                  onError={(e) => {
+                    const img = e.currentTarget as HTMLImageElement;
+                    if (defaultImageUrl && img.src !== defaultImageUrl) {
+                      img.src = defaultImageUrl;
+                    } else {
+                      img.style.display = 'none';
+                    }
+                  }}
+                />
+              ) : null
+            )}
+          </div>
+          {canEdit && (
+            <div className="mb-6">
+              <div className="flex items-center gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImageSelect(file);
+                  }}
+                  className="block flex-1 text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                />
+                {selectedImageFile && (
+                  <button
+                    type="button"
+                    onClick={clearSelectedImage}
+                    className="px-4 py-2 text-sm bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 whitespace-nowrap"
+                    title="Reset image widget"
+                  >
+                    Reset Image
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Title
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                  {ontology.name}
-                </div>
+                <input
+                  type="text"
+                  value={editable?.name || ''}
+                  placeholder={'Untitled Ontology'}
+                  onChange={(e) => handleFieldChange('name', e.target.value)}
+                  disabled={!canEdit}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 disabled:bg-gray-100"
+                />
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Description
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 min-h-[100px]">
-                  {ontology.description}
-                </div>
+                <textarea
+                  rows={4}
+                  value={editable?.description || ''}
+                  onChange={(e) => handleFieldChange('description', e.target.value)}
+                  disabled={!canEdit}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 disabled:bg-gray-100"
+                />
               </div>
               
               <div>
@@ -160,15 +482,82 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                   Tags
                 </label>
                 <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                  <div className="flex flex-wrap gap-1">
-                    {tags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                      >
-                        {tag}
-                      </span>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {(editable?.tags || ontology.tags || []).map((tag, index) => (
+                      <div key={`${tag}-${index}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {editTagIndex === index ? (
+                          <input
+                            type="text"
+                            value={editTagValue}
+                            onChange={(e) => setEditTagValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                setEditable(prev => {
+                                  if (!prev) return prev;
+                                  const updated = [...(prev.tags || [])];
+                                  updated[index] = editTagValue.trim();
+                                  return { ...prev, tags: updated } as any;
+                                });
+                                setEditTagIndex(null);
+                                setEditTagValue('');
+                              }
+                              if (e.key === 'Escape') {
+                                setEditTagIndex(null);
+                                setEditTagValue('');
+                              }
+                            }}
+                            className="px-1 py-0.5 text-xs border border-blue-300 rounded bg-white text-blue-900"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!canEdit) return;
+                              setEditTagIndex(index);
+                              setEditTagValue(tag);
+                            }}
+                            className="cursor-text"
+                            title={canEdit ? 'Click to edit tag' : undefined}
+                          >
+                            {tag}
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditable(prev => {
+                                if (!prev) return prev;
+                                const updated = [...(prev.tags || [])];
+                                updated.splice(index, 1);
+                                return { ...prev, tags: updated } as any;
+                              });
+                            }}
+                            className="ml-1 text-blue-900/70 hover:text-blue-900"
+                            title="Remove tag"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     ))}
+                    {canEdit && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            // Preselect existing tags
+                            const current = editable?.tags || ontology.tags || [];
+                            setSelectedDialogTags(current);
+                            setShowTagDialog(true);
+                          }}
+                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          Add
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -177,34 +566,33 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Status
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    ontology.properties?.is_public 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {ontology.properties?.is_public ? 'Public' : 'Private'}
-                  </span>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="is_public"
+                    type="checkbox"
+                    checked={!!editable?.properties?.is_public}
+                    onChange={(e) => handlePropChange('is_public', e.target.checked)}
+                    disabled={!canEdit}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  />
+                  <label htmlFor="is_public" className="text-sm text-gray-700">
+                    Public
+                  </label>
                 </div>
               </div>
 
-              {ontology.properties?.source_url && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Source URL
-                  </label>
-                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                    <a 
-                      href={ontology.properties.source_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 break-all"
-                    >
-                      {ontology.properties.source_url}
-                    </a>
-                  </div>
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Source URL
+                </label>
+                <input
+                  type="url"
+                  value={editable?.properties?.source_url || ''}
+                  onChange={(e) => handlePropChange('source_url', e.target.value)}
+                  disabled={!canEdit}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900 disabled:bg-gray-100"
+                />
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -215,63 +603,98 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 </div>
               </div>
 
-              {ontology.node_count && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nodes
-                  </label>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nodes
+                </label>
+                {canEdit ? (
+                  <input
+                    type="number"
+                    value={editable?.node_count ?? ontology.node_count ?? 0}
+                    onChange={(e) => setEditable(prev => prev ? { ...prev, node_count: Number(e.target.value) } as any : prev)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900"
+                  />
+                ) : (
                   <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                    {ontology.node_count.toLocaleString()}
+                    {(editable?.node_count ?? ontology.node_count ?? 0).toLocaleString()}
                   </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Relationships
+                </label>
+                {canEdit ? (
+                  <input
+                    type="number"
+                    value={editable?.relationship_count ?? ontology.relationship_count ?? 0}
+                    onChange={(e) => setEditable(prev => prev ? { ...prev, relationship_count: Number(e.target.value) } as any : prev)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-sm text-gray-900"
+                  />
+                ) : (
+                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
+                    {(editable?.relationship_count ?? ontology.relationship_count ?? 0).toLocaleString()}
+                  </div>
+                )}
+              </div>
+              
+              {/* Success/Error Messages */}
+              {saveSuccess && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md text-sm text-green-800">
+                  Ontology updated successfully.
+                </div>
+              )}
+              {saveError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+                  {saveError}
                 </div>
               )}
 
-              {ontology.relationship_count && (
+              {/* Buttons */}
+              <div className="flex items-center justify-between pt-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Relationships
-                  </label>
-                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                    {ontology.relationship_count.toLocaleString()}
-                  </div>
+                  {canDelete && (
+                    <button
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="px-8 py-3 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200"
+                    >
+                      DELETE
+                    </button>
+                  )}
                 </div>
-              )}
-              
-              <div className="flex flex-col space-y-3 pt-4">                
+                <div className="flex gap-3">
+                {canEdit && (
+                  <button
+                    onClick={handleSave}
+                    disabled={!isDirty || isSaving}
+                    className={`px-8 py-3 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 ${
+                      !isDirty || isSaving
+                        ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {isSaving ? 'SAVING...' : 'SAVE'}
+                  </button>
+                )}
                 <button
-                  onClick={handleEdit}
-                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+                  onClick={handleUpload}
+                  className="px-8 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
                 >
-                  EDIT
+                  UPLOAD TO DATABASE
                 </button>
+                </div>
               </div>
             </div>
-          </div>
+        </div>
 
-          {/* Graph View Panel */}
-          <div className="lg:col-span-6 bg-white rounded-lg shadow-sm border p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">READ-ONLY GRAPH VIEW</h2>
-            <GraphVisualization width={600} height={400} className="h-96" />
-            
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={handleUpload}
-                className="px-8 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
-              >
-                UPLOAD TO DATABASE
-              </button>
-            </div>
-          </div>
-
-          {/* Comments Panel */}
-          <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border p-6">
+        {/* Comments Section - hidden/disabled */}
+        {false && (
+          <div className="bg-white rounded-lg shadow-sm border p-6 mt-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-gray-900">COMMENTS</h2>
             </div>
-            
             <CommentSystem />
-            
-            {/* Add Comment Form */}
             <div className="mt-6 pt-4 border-t border-gray-200">
               <textarea
                 placeholder="Add a comment..."
@@ -285,7 +708,123 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Upload Dialog */}
+        {showUploadDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload to Neo4j Database</h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Neo4j URI *
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadUri}
+                    onChange={(e) => setUploadUri(e.target.value)}
+                    placeholder="neo4j+s://xxxx.databases.neo4j.io"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadUsername}
+                    onChange={(e) => setUploadUsername(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={uploadPassword}
+                    onChange={(e) => setUploadPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Database
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadDatabase}
+                    onChange={(e) => setUploadDatabase(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={handleDialogCancel}
+                  disabled={isUploading}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDialogUpload}
+                  disabled={isUploading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  {isUploading ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Dialog */}
+        {showDeleteDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4 text-red-700">Confirm Deletion</h2>
+              <p className="text-sm text-gray-700 mb-4">
+                This action cannot be undone. Are you sure you want to permanently delete this ontology?
+              </p>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowDeleteDialog(false)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting...' : 'Yes, Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tag Management Dialog */}
+        <TagManagerDialog
+          open={showTagDialog}
+          initialSelected={selectedDialogTags}
+          onClose={() => setShowTagDialog(false)}
+          onSave={(committed) => {
+            setEditable(prev => prev ? { ...prev, tags: committed } as any : prev);
+            setShowTagDialog(false);
+          }}
+        />
       </div>
     </div>
   );

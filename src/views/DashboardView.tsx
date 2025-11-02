@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Settings, Eye, EyeOff, FileText, Calendar, Star, Tag } from 'lucide-react';
+import { Search, Plus, Eye, EyeOff, FileText, Tag } from 'lucide-react';
 import { ontologyService, Ontology } from '../services/ontologyService';
 import { authService } from '../services/authService';
 
 interface DashboardViewProps {
   onNavigate: (view: string, id?: string) => void;
-  onOpenSettings?: () => void;
 }
 
 interface Category {
@@ -20,7 +19,8 @@ interface Tag {
   color: string;
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpenSettings }) => {
+export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
+  const defaultImageUrl = (import.meta.env as any).VITE_DEFAULT_ONTOLOGY_IMAGE_URL || (import.meta.env as any).DEFAULT_ONTOLOGY_IMAGE_URL || '';
   const [ontologies, setOntologies] = useState<Ontology[]>([]);
   const [filteredOntologies, setFilteredOntologies] = useState<Ontology[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +34,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
     setUser(currentUser);
+  }, []);
+
+  // Refresh ontologies when auth state changes (e.g., after login)
+  useEffect(() => {
+    const unsubscribe = authService.onAuthStateChange((u) => {
+      setUser(u);
+      // Re-load ontologies so private ones appear after login
+      loadOntologies();
+    });
+    return unsubscribe;
   }, []);
 
   // Load ontologies
@@ -64,8 +74,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     // Apply tag filters
     if (selectedTags.length > 0) {
       filtered = filtered.filter(ontology => {
-        const ontologyTags = extractTagsFromOntology(ontology);
-        return selectedTags.some(tag => ontologyTags.includes(tag));
+        const ontologyTags = ontology.tags || [];
+        return selectedTags.some((tag: string) => ontologyTags.includes(tag));
       });
     }
 
@@ -91,27 +101,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     }
   };
 
-  // Extract tags from ontology (you can customize this based on your data structure)
-  const extractTagsFromOntology = (ontology: Ontology): string[] => {
-    const tags: string[] = [];
-    
-    // Add tags based on ontology properties
-    if (ontology.properties?.source_url) {
-      if (ontology.properties.source_url.includes('medical')) tags.push('Medical');
-      if (ontology.properties.source_url.includes('ecommerce')) tags.push('E-commerce');
-      if (ontology.properties.source_url.includes('academic')) tags.push('Academic');
-      if (ontology.properties.source_url.includes('research')) tags.push('Research');
-    }
-    
-    // Add tags based on ontology name/description
-    const text = `${ontology.name} ${ontology.description}`.toLowerCase();
-    if (text.includes('medical') || text.includes('healthcare')) tags.push('Medical');
-    if (text.includes('ecommerce') || text.includes('retail')) tags.push('E-commerce');
-    if (text.includes('academic') || text.includes('research')) tags.push('Academic');
-    if (text.includes('research') || text.includes('publication')) tags.push('Research');
-    
-    return [...new Set(tags)]; // Remove duplicates
-  };
+  // Tags now provided by backend per ontology; no local heuristics.
 
   // Generate categories dynamically
   const categories: Category[] = [
@@ -152,8 +142,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
     const tagCounts: { [key: string]: number } = {};
     
     ontologies.forEach(ontology => {
-      const tags = extractTagsFromOntology(ontology);
-      tags.forEach(tag => {
+      const tags = ontology.tags || [];
+      tags.forEach((tag: string) => {
         tagCounts[tag] = (tagCounts[tag] || 0) + 1;
       });
     });
@@ -221,39 +211,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
               <span className="text-white font-bold text-lg">
-                {user?.name?.charAt(0) || 'U'}
+                {user?.name?.charAt(0) || 'A'}
               </span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{user?.name || 'User'}</h1>
-              <p className="text-gray-600">{user?.email}</p>
-              <p className="text-sm text-gray-500">
-                {ontologies.length} ontologies • Member since {new Date().getFullYear()}
-              </p>
+              <h1 className="text-2xl font-bold text-gray-900">{user?.name || 'Anonymous User'}</h1>
+              {user ? (
+                <>
+                  <p className="text-gray-600">{user.email}</p>
+                  <p className="text-sm text-gray-500">
+                    {ontologies.length} ontologies • Member since {new Date().getFullYear()}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">
+                  Log in to create and edit
+                </p>
+              )}
             </div>
           </div>
-                     <button
-             onClick={onOpenSettings}
-             className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-           >
-             <Settings className="h-4 w-4" />
-             <span>Settings</span>
-           </button>
         </div>
 
         <div className="flex space-x-8">
           {/* Sidebar */}
           <div className="w-64 flex-shrink-0">
             {/* Quick Actions */}
-            <div className="mb-6">
-              <button
-                onClick={() => onNavigate('new-ontology')}
-                className="w-full bg-blue-600 text-white px-4 py-3 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 flex items-center justify-center space-x-2"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Create New</span>
-              </button>
-            </div>
+            {user && (
+              <div className="mb-6">
+                <button
+                  onClick={() => onNavigate('new-ontology')}
+                  className="w-full bg-blue-600 text-white px-4 py-3 rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 flex items-center justify-center space-x-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Create New</span>
+                </button>
+              </div>
+            )}
 
             {/* Categories */}
             <div className="mb-6">
@@ -341,34 +334,54 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
               </div>
             ) : filteredOntologies.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredOntologies.map((ontology) => (
-                  <div key={ontology.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                {filteredOntologies.map((ontology) => {
+                  const ontologyUuid = (ontology as any).uuid || ontology.id;
+                  if (!ontologyUuid) return null; // Skip if no UUID/ID
+                  
+                  return (
+                  <div 
+                    key={ontology.id} 
+                    onClick={() => {
+                      const absoluteUrl = `${window.location.origin}${window.location.pathname}#ontology-details/${ontologyUuid}`;
+                      // Use _blank to always open new window, avoiding window reuse issues
+                      window.open(absoluteUrl, '_blank');
+                    }}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer"
+                  >
                     {/* Thumbnail */}
-                    <div className="h-48 bg-gray-100 rounded-t-lg flex items-center justify-center">
-                      {ontology.properties?.image_url ? (
-                        <img 
-                          src={ontology.properties.image_url} 
+                    <div className="h-56 bg-gray-50 rounded-t-lg flex items-center justify-center overflow-hidden">
+                      {((ontology.properties?.image_url && ontology.properties.image_url.trim()) || defaultImageUrl) ? (
+                        <img
+                          src={(ontology.properties?.image_url && ontology.properties.image_url.trim()) ? ontology.properties.image_url : defaultImageUrl}
                           alt={`${ontology.name} thumbnail`}
-                          className="w-full h-full object-cover rounded-t-lg"
+                          className="max-h-full max-w-full object-contain rounded-t-lg"
                           onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.nextElementSibling!.style.display = 'flex';
+                            const img = e.currentTarget as HTMLImageElement;
+                            if (defaultImageUrl && img.src !== defaultImageUrl) {
+                              img.src = defaultImageUrl;
+                            } else {
+                              img.style.display = 'none';
+                              const fallback = img.nextElementSibling as HTMLElement;
+                              if (fallback) {
+                                fallback.style.display = 'flex';
+                              }
+                            }
                           }}
                         />
                       ) : null}
-                      <div className="w-full h-full flex items-center justify-center" style={{ display: ontology.properties?.image_url ? 'none' : 'flex' }}>
+                      <div className="w-full h-full flex items-center justify-center" style={{ display: (((ontology.properties?.image_url && ontology.properties.image_url.trim()) ? ontology.properties.image_url : defaultImageUrl)) ? 'none' : 'flex' }}>
                         <FileText className="w-12 h-12 text-gray-400" />
                       </div>
                     </div>
 
                     {/* Content */}
                     <div className="p-4">
-                      <h3 className="font-medium text-gray-900 truncate">{ontology.name}</h3>
+                      <h3 className="font-medium text-gray-900 truncate">{ontology.name || 'Untitled Ontology'}</h3>
                       <p className="text-sm text-gray-600 mt-1 line-clamp-2">{ontology.description}</p>
                       
                       {/* Tags */}
                       <div className="flex flex-wrap gap-1 mt-3">
-                        {extractTagsFromOntology(ontology).slice(0, 3).map((tag) => (
+                        {(ontology.tags || []).slice(0, 3).map((tag: string) => (
                           <span
                             key={tag}
                             className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
@@ -376,9 +389,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                             {tag}
                           </span>
                         ))}
-                        {extractTagsFromOntology(ontology).length > 3 && (
+                        {(ontology.tags || []).length > 3 && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                            +{extractTagsFromOntology(ontology).length - 3}
+                            +{(ontology.tags || []).length - 3}
                           </span>
                         )}
                       </div>
@@ -409,30 +422,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, onOpen
                         </div>
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => {
-                              // Navigate to view/edit
-                              console.log('View/Edit ontology:', ontology.id);
-                              onNavigate('ontology-details', ontology.id);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const ontologyUuid = (ontology as any).uuid || ontology.id;
+                              if (!ontologyUuid) return;
+                              
+                              const absoluteUrl = `${window.location.origin}${window.location.pathname}#ontology-details/${ontologyUuid}`;
+                              // Use _blank to always open new window
+                              window.open(absoluteUrl, '_blank');
                             }}
                             className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                           >
                             View
                           </button>
-                          <button
-                            onClick={() => {
-                              // Navigate to edit
-                              console.log('Edit ontology:', ontology.id);
-                              onNavigate('edit-ontology', ontology.id);
-                            }}
-                            className="text-sm text-green-600 hover:text-green-800 font-medium"
-                          >
-                            Edit
-                          </button>
                         </div>
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12">

@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
 import { User, Lock, Eye, EyeOff, Mail, Chrome, UserPlus, Play, Server } from 'lucide-react';
 import { authService, AuthError } from '../services/authService';
-import { DemoLoginPanel } from '../components/DemoLoginPanel';
 import { FirebaseEmulatorSetup } from '../components/FirebaseEmulatorSetup';
-import { DemoUser, demoAuthService } from '../services/demoAuthService';
 
 interface User {
   id: string;
@@ -15,7 +13,7 @@ interface LoginViewProps {
   onLogin: (user: User) => void;
 }
 
-type AuthMode = 'signin' | 'signup' | 'reset' | 'demo' | 'emulator';
+type AuthMode = 'signin' | 'signup' | 'reset' | 'emulator';
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
   const [mode, setMode] = useState<AuthMode>('signin');
@@ -83,15 +81,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     }
   };
 
-  const handleDemoLogin = (demoUser: DemoUser) => {
-    // Convert DemoUser to User interface
-    const user: User = {
-      id: demoUser.id,
-      name: demoUser.name,
-      email: demoUser.email
-    };
-    onLogin(user);
-  };
+  // Demo mode is not supported currently
 
   const resetForm = () => {
     setEmail('');
@@ -111,7 +101,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     switch (mode) {
       case 'signup': return 'Create Account';
       case 'reset': return 'Reset Password';
-      case 'demo': return 'Demo Access';
+      
       case 'emulator': return 'Development Setup';
       default: return 'Welcome Back';
     }
@@ -121,7 +111,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     switch (mode) {
       case 'signup': return 'Create your Ontology Marketplace account';
       case 'reset': return 'Enter your email to reset your password';
-      case 'demo': return 'Try the application with sample data';
+      
       case 'emulator': return 'Set up Firebase emulator for development';
       default: return 'Sign in to your Ontology Marketplace account';
     }
@@ -139,37 +129,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
           <p className="mt-2 text-gray-600">{getSubtitle()}</p>
         </div>
 
-        {/* Mode Selector */}
-        <div className="bg-white rounded-lg shadow-lg p-2">
-          <div className="grid grid-cols-2 gap-1">
-            <button
-              onClick={() => switchMode('signin')}
-              className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
-                ['signin', 'signup', 'reset'].includes(mode)
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Firebase Auth
-            </button>
-            <button
-              onClick={() => switchMode('demo')}
-              className={`px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${
-                mode === 'demo'
-                  ? 'bg-green-600 text-white'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
-            >
-              Demo Mode
-            </button>
-          </div>
-        </div>
+        {/* Mode Selector removed: Demo Mode is not supported */}
 
         {/* Content */}
         <div className="bg-white rounded-lg shadow-lg p-8">
-          {mode === 'demo' ? (
-            <DemoLoginPanel onDemoLogin={handleDemoLogin} isLoading={isLoading} />
-          ) : mode === 'emulator' ? (
+          {mode === 'emulator' ? (
             <FirebaseEmulatorSetup />
           ) : (
             <>
