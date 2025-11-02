@@ -24,8 +24,6 @@ export interface UserAccountResponse {
 
 class UserService {
   private userAccount: UserAccount | null = null;
-  private editableIds: Set<string> = new Set();
-  private deletableIds: Set<string> = new Set();
   private lastFetched: number = 0;
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
   private fetchPromise: Promise<UserAccount | null> | null = null;
@@ -93,8 +91,6 @@ class UserService {
         const account = await this.fetchUserAccount();
         if (account) {
           this.userAccount = account;
-          this.editableIds = new Set(account.permissions.can_edit_ontologies);
-          this.deletableIds = new Set(account.permissions.can_delete_ontologies);
           this.lastFetched = Date.now();
         } else {
           // If fetch failed, don't clear existing cache
@@ -117,21 +113,32 @@ class UserService {
   }
 
   /**
+   * Check if an ontology ID has a specific permission (from cache, no network call)
+   * Since permissions come from a single /get_user call, we can check both from the same source
+   */
+  hasPermission(ontologyId: string, permissionType: 'edit' | 'delete'): boolean {
+    if (!ontologyId || !this.userAccount) return false;
+    const normalizedId = ontologyId.trim();
+    const permissionArray = permissionType === 'edit' 
+      ? this.userAccount.permissions.can_edit_ontologies
+      : this.userAccount.permissions.can_delete_ontologies;
+    return permissionArray.includes(normalizedId);
+  }
+
+  /**
    * Check if an ontology ID is editable (from cache, no network call)
+   * @deprecated Use hasPermission(ontologyId, 'edit') instead
    */
   canEdit(ontologyId: string): boolean {
-    if (!ontologyId) return false;
-    const normalizedId = ontologyId.trim();
-    return this.editableIds.has(normalizedId);
+    return this.hasPermission(ontologyId, 'edit');
   }
 
   /**
    * Check if an ontology ID is deletable (from cache, no network call)
+   * @deprecated Use hasPermission(ontologyId, 'delete') instead
    */
   canDelete(ontologyId: string): boolean {
-    if (!ontologyId) return false;
-    const normalizedId = ontologyId.trim();
-    return this.deletableIds.has(normalizedId);
+    return this.hasPermission(ontologyId, 'delete');
   }
 
   /**
@@ -139,8 +146,6 @@ class UserService {
    */
   clear(): void {
     this.userAccount = null;
-    this.editableIds.clear();
-    this.deletableIds.clear();
     this.lastFetched = 0;
     this.fetchPromise = null;
   }
@@ -150,6 +155,13 @@ class UserService {
    */
   isStale(): boolean {
     return Date.now() - this.lastFetched > this.CACHE_TTL_MS;
+  }
+
+  /**
+   * Check if a refresh is currently in progress
+   */
+  isRefreshing(): boolean {
+    return this.fetchPromise !== null;
   }
 
   /**
@@ -164,8 +176,8 @@ class UserService {
   } {
     return {
       hasUser: this.userAccount !== null,
-      editableCount: this.editableIds.size,
-      deletableCount: this.deletableIds.size,
+      editableCount: this.userAccount?.permissions.can_edit_ontologies.length ?? 0,
+      deletableCount: this.userAccount?.permissions.can_delete_ontologies.length ?? 0,
       lastFetched: this.lastFetched ? new Date(this.lastFetched) : null,
       isStale: this.isStale(),
     };
