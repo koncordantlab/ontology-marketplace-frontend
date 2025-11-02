@@ -334,13 +334,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               </div>
             ) : filteredOntologies.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredOntologies.map((ontology) => (
+                {filteredOntologies.map((ontology) => {
+                  const ontologyUuid = (ontology as any).uuid || ontology.id;
+                  if (!ontologyUuid) return null; // Skip if no UUID/ID
+                  
+                  return (
                   <div 
                     key={ontology.id} 
                     onClick={() => {
-                      const url = `#ontology-details?id=${ontology.id}`;
-                      const target = `ontology-${ontology.id}`;
-                      window.open(url, target);
+                      const absoluteUrl = `${window.location.origin}${window.location.pathname}#ontology-details/${ontologyUuid}`;
+                      // Use _blank to always open new window, avoiding window reuse issues
+                      window.open(absoluteUrl, '_blank');
                     }}
                     className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer"
                   >
@@ -420,9 +424,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const url = `#ontology-details?id=${ontology.id}`;
-                              const target = `ontology-${ontology.id}`;
-                              window.open(url, target);
+                              const ontologyUuid = (ontology as any).uuid || ontology.id;
+                              if (!ontologyUuid) return;
+                              
+                              const absoluteUrl = `${window.location.origin}${window.location.pathname}#ontology-details/${ontologyUuid}`;
+                              // Use _blank to always open new window
+                              window.open(absoluteUrl, '_blank');
                             }}
                             className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                           >
@@ -432,7 +439,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="text-center py-12">
