@@ -4,6 +4,7 @@ import { ontologyService, Ontology } from '../services/ontologyService';
 import { BackendApiClient } from '../config/backendApi';
 import { cloudinaryService } from '../services/cloudinaryService';
 import { userService } from '../services/userService';
+import { authService } from '../services/authService';
 import { TagManagerDialog } from '../components/TagManagerDialog';
 
 interface OntologyDetailsViewProps {
@@ -45,6 +46,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [selectedDialogTags, setSelectedDialogTags] = useState<string[]>([]);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
+  const [permissionsLoading, setPermissionsLoading] = useState(true);
 
   useEffect(() => {
     const fetchOntology = async () => {
@@ -59,7 +61,10 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
         const result = await ontologyService.searchOntologies();
         
         if (result.success && result.data) {
-          const foundOntology = result.data.find(ont => ont.id === ontologyId);
+          // Find by UUID first, then fallback to ID for backward compatibility
+          const foundOntology = result.data.find(ont => 
+            (ont as any).uuid === ontologyId || ont.id === ontologyId
+          );
           if (foundOntology) {
             setOntology(foundOntology);
           } else {
@@ -79,33 +84,74 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     fetchOntology();
   }, [ontologyId]);
 
-  // Check edit permission using cached permissions from user account
+  // Check permissions using cached user account data from single /get_user call
   useEffect(() => {
-    if (!ontologyId) {
-      setCanEdit(false);
-      return;
-    }
+    const checkPermissionsAsync = async () => {
+      if (!ontologyId) {
+        setCanEdit(false);
+        setCanDelete(false);
+        setPermissionsLoading(false);
+        return;
+      }
+      
+      const ontologyUuid = (ontology && (ontology as any).uuid) || ontologyId;
+      const currentUser = authService.getCurrentUser();
+      
+      // Optimistic check: if user owns the ontology, assume they can edit immediately
+      const isOwner = currentUser && ontology?.ownerId && ontology.ownerId === currentUser.id;
+      
+      // Set optimistic permissions IMMEDIATELY for owners (before checking cache)
+      if (isOwner) {
+        setCanEdit(true);
+        setCanDelete(true);
+      }
+      
+      // Helper to check permissions from userAccount
+      const checkPermissions = (userAccount: ReturnType<typeof userService.getUserAccount>): { canEdit: boolean; canDelete: boolean } => {
+        if (!userAccount) return { canEdit: false, canDelete: false };
+        const normalizedId = ontologyUuid.trim();
+        return {
+          canEdit: Boolean(userAccount.permissions.can_edit_ontologies.includes(normalizedId) || isOwner),
+          canDelete: Boolean(userAccount.permissions.can_delete_ontologies.includes(normalizedId) || isOwner),
+        };
+      };
+      
+      let userAccount = userService.getUserAccount();
+      const needsRefresh = !userAccount || userService.isStale();
+      const isRefreshing = userService.isRefreshing();
+      
+      // If cache needs refresh OR a refresh is already in progress, await it FIRST
+      // This ensures we wait for App.tsx's refresh if it's already running
+      if (needsRefresh || isRefreshing) {
+        setPermissionsLoading(true);
+        try {
+          // Await refresh - this will either:
+          // 1. Start a new refresh if none in progress
+          // 2. Wait for the in-progress refresh from App.tsx if one exists
+          // 3. Return immediately if cache is fresh (though we check this above)
+          await userService.refresh();
+          // After refresh completes, get the updated account
+          userAccount = userService.getUserAccount();
+        } catch (error) {
+          console.error('Failed to refresh user account:', error);
+          // On error, keep optimistic permissions for owners
+          if (!isOwner) {
+            setCanEdit(false);
+            setCanDelete(false);
+          }
+          setPermissionsLoading(false);
+          return;
+        }
+      }
+      
+      // Now check permissions with the (refreshed) cache
+      const permissions = checkPermissions(userAccount);
+      setCanEdit(permissions.canEdit);
+      setCanDelete(permissions.canDelete);
+      setPermissionsLoading(false);
+    };
     
-    const ontologyUuid = (ontology && (ontology as any).uuid) || ontologyId;
-    
-    // Check from cache (no network call)
-    const canEditResult = userService.canEdit(ontologyUuid);
-    setCanEdit(canEditResult);
-    const canDeleteResult = userService.canDelete(ontologyUuid);
-    setCanDelete(canDeleteResult);
-    
-    // Refresh cache if stale (background refresh, doesn't block UI)
-    if (userService.isStale()) {
-      userService.refresh().then(() => {
-        // Re-check after refresh
-        const refreshedEdit = userService.canEdit(ontologyUuid);
-        setCanEdit(refreshedEdit);
-        const refreshedDelete = userService.canDelete(ontologyUuid);
-        setCanDelete(refreshedDelete);
-      }).catch((error) => {
-        console.error('Failed to refresh user account:', error);
-      });
-    }
+    checkPermissionsAsync();
   }, [ontologyId, ontology]);
 
   // Initialize editable copy when ontology loads

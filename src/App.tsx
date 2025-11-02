@@ -27,20 +27,69 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [pendingHash, setPendingHash] = useState<string | null>(null);
+
+  // Simplified hash parser - processes hash into view and ID
+  const parseHash = (hash: string): { view: ViewType | null; id: string | null } => {
+    if (!hash) return { view: null, id: null };
+    
+    const hashContent = hash.substring(1); // Remove #
+    
+    // Format: #ontology-details/uuid
+    const parts = hashContent.split('/');
+    if (parts.length === 2) {
+      const [view, id] = parts;
+      if (id && ['ontology-details', 'edit-ontology'].includes(view)) {
+        return { view: view as ViewType, id };
+      }
+    }
+    
+    // Format: #dashboard or single view name
+    if (parts.length === 1) {
+      const part = parts[0];
+      if (part === 'dashboard') {
+        return { view: 'dashboard', id: null };
+      }
+      if (part === 'ontology-details' || part === 'edit-ontology') {
+        return { view: part as ViewType, id: null };
+      }
+      // Assume UUID if not a known view name
+      if (part && part.length > 0) {
+        return { view: 'ontology-details', id: part };
+      }
+    }
+    
+    // Legacy format: #ontology-details?id=uuid
+    const legacyMatch = hashContent.match(/^([^?]+)\?id=(.+)$/);
+    if (legacyMatch) {
+      const [, view, id] = legacyMatch;
+      if (id && ['ontology-details', 'edit-ontology'].includes(view)) {
+        return { view: view as ViewType, id };
+      }
+    }
+    
+    return { view: null, id: null };
+  };
 
   useEffect(() => {
-    // Check for hash URL on initial load
+    // Process hash FIRST, before setting any default views
+    // This avoids race conditions where dashboard view overrides hash-based navigation
     const hash = window.location.hash;
-    if (hash) {
-      setPendingHash(hash);
+    const parsedHash = parseHash(hash); // Parse once and reuse
+    
+    // Set view and ID from hash if present
+    if (parsedHash.view) {
+      setCurrentView(parsedHash.view);
+    }
+    if (parsedHash.id) {
+      setSelectedOntologyId(parsedHash.id);
     }
 
     // Listen for authentication state changes
     const unsubscribe = authService.onAuthStateChange(async (user) => {
       setCurrentUser(user);
       if (user) {
-        setCurrentView((prev) => (prev === 'login' ? 'dashboard' : prev));
+        // Only override view if we're on login screen
+        setCurrentView((prev) => (prev === 'login' ? (parsedHash.view || 'dashboard') : prev));
         // Fetch user account and permissions after login
         try {
           await userService.refresh();
@@ -48,7 +97,10 @@ function App() {
           console.error('Failed to fetch user account on login:', error);
         }
       } else {
-        setCurrentView('dashboard');
+        // On logout, only set dashboard if no hash was parsed
+        if (!parsedHash.view) {
+          setCurrentView('dashboard');
+        }
         // Clear cache on logout
         userService.clear();
       }
@@ -59,55 +111,48 @@ function App() {
     const user = authService.getCurrentUser();
     if (user) {
       setCurrentUser(user);
-      setCurrentView('dashboard');
+      // Only set dashboard if no hash was processed
+      if (!parsedHash.view) {
+        setCurrentView('dashboard');
+      }
       // Fetch user account if user is already logged in
+      // For detail views, we need permissions loaded ASAP, so start refresh immediately
+      // (Don't await here to avoid blocking UI, but OntologyDetailsView will await if needed)
       userService.refresh().catch((error) => {
         console.error('Failed to fetch user account on initial load:', error);
       });
+    } else {
+      // No user - if no hash, show dashboard
+      if (!parsedHash.view) {
+        setCurrentView('dashboard');
+      }
     }
     setIsLoading(false);
 
     return unsubscribe;
   }, []);
 
-  // Handle hash-based URLs for opening views in new tabs
+  // Handle hash changes (for navigation within same window)
   useEffect(() => {
-    // Allow hash routing for both authenticated and anonymous users
     if (isLoading) return;
-
-    const processHash = (hash: string) => {
-      if (!hash) return;
-
-      // Parse hash URL (e.g., #ontology-details?id=123)
-      const [view, queryString] = hash.substring(1).split('?');
-      if (queryString) {
-        const urlParams = new URLSearchParams(queryString);
-        const id = urlParams.get('id');
-        if (id) {
-          setSelectedOntologyId(id);
-        }
-      }
-
-      // Set the view based on hash
-      if (view && ['ontology-details', 'edit-ontology', 'dashboard'].includes(view)) {
-        setCurrentView(view as ViewType);
-      }
-    };
 
     const handleHashChange = () => {
       const hash = window.location.hash;
-      processHash(hash);
+      const parsed = parseHash(hash);
+      
+      if (parsed.view) {
+        setCurrentView(parsed.view);
+      }
+      if (parsed.id !== null) {
+        // null means no ID in hash, undefined means don't change
+        setSelectedOntologyId(parsed.id);
+      }
     };
 
-    // Process pending hash or current hash
-    const hashToProcess = pendingHash || window.location.hash;
-    processHash(hashToProcess);
-    setPendingHash(null); // Clear pending hash after processing
-
-    // Listen for hash changes
+    // Listen for hash changes (when user navigates via back/forward or direct hash change)
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [isLoading, pendingHash]);
+  }, [isLoading]);
 
   // Handle Firebase permission errors by defaulting to demo mode
   useEffect(() => {
@@ -151,11 +196,22 @@ function App() {
         { id: 'dashboard' as ViewType, label: 'Dashboard' },
       ];
 
+  // Unified navigation helper - updates both state and URL hash
   const handleViewChange = (view: string, ontologyId?: string) => {
     setCurrentView(view as ViewType);
+    
     if (ontologyId) {
       setSelectedOntologyId(ontologyId);
+      // Update URL hash to reflect the navigation
+      window.location.hash = `ontology-details/${ontologyId}`;
+    } else {
+      // Clear ontology ID if navigating away from detail view
+      if (view !== 'ontology-details' && view !== 'edit-ontology') {
+        setSelectedOntologyId(null);
+      }
+      window.location.hash = view;
     }
+    
     setMobileMenuOpen(false);
   };
 
@@ -181,8 +237,8 @@ function App() {
     setCurrentUser(updatedUser);
   };
 
-  // Show loading spinner while checking authentication or if there's a pending hash
-  if (isLoading || pendingHash) {
+  // Show loading spinner while checking authentication
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

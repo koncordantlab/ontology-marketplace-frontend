@@ -292,14 +292,17 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onNavigate, currentUse
 
             {/* Ontology Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredOntologies.map((ontology) => (
-                <OntologyCard
-                  key={ontology.id}
-                  ontology={ontology}
-                  onView={() => onNavigate('ontology-details', ontology.id)}
-                  onEdit={() => onNavigate('edit-ontology', ontology.id)}
-                />
-              ))}
+              {filteredOntologies.map((ontology) => {
+                const ontologyUuid = (ontology as any).uuid || ontology.id;
+                return (
+                  <OntologyCard
+                    key={ontology.id}
+                    ontology={ontology}
+                    onView={() => onNavigate('ontology-details', ontologyUuid)}
+                    onEdit={() => onNavigate('edit-ontology', ontologyUuid)}
+                  />
+                );
+              })}
             </div>
 
             {filteredOntologies.length === 0 && (
