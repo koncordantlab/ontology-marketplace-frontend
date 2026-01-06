@@ -46,8 +46,8 @@ function App() {
     // Format: #dashboard or single view name
     if (parts.length === 1) {
       const part = parts[0];
-      if (part === 'dashboard') {
-        return { view: 'dashboard', id: null };
+      if (part === 'dashboard' || part === 'new-ontology') {
+        return { view: part as ViewType, id: null };
       }
       if (part === 'ontology-details' || part === 'edit-ontology') {
         return { view: part as ViewType, id: null };
