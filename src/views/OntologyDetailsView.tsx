@@ -37,6 +37,8 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [uploadPassword, setUploadPassword] = useState('');
   const [uploadDatabase, setUploadDatabase] = useState('neo4j');
   const [isUploading, setIsUploading] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [connectionMessage, setConnectionMessage] = useState('');
 
   // Tag editor state
   const [editTagIndex, setEditTagIndex] = useState<number | null>(null);
@@ -327,6 +329,42 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     setShowUploadDialog(false);
     setUploadUri('');
     setUploadPassword('');
+    setConnectionStatus('idle');
+    setConnectionMessage('');
+  };
+
+  const handleTestConnection = async () => {
+    if (!uploadUri || !uploadPassword) {
+      setConnectionStatus('error');
+      setConnectionMessage('URI and password are required');
+      return;
+    }
+
+    setConnectionStatus('testing');
+    setConnectionMessage('');
+
+    try {
+      const result = await BackendApiClient.request('/test_neo4j_connection', {
+        method: 'POST',
+        body: {
+          neo4j_uri: uploadUri,
+          neo4j_username: uploadUsername,
+          neo4j_password: uploadPassword,
+          neo4j_database: uploadDatabase,
+        },
+      });
+
+      if (result.success) {
+        setConnectionStatus('success');
+        setConnectionMessage(result.message || 'Connection successful');
+      } else {
+        setConnectionStatus('error');
+        setConnectionMessage(result.message || 'Connection failed');
+      }
+    } catch (error) {
+      setConnectionStatus('error');
+      setConnectionMessage(error instanceof Error ? error.message : 'Failed to test connection');
+    }
   };
 
   const handleDialogUpload = async () => {
@@ -772,17 +810,35 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 </div>
               </div>
 
+              {/* Connection Status */}
+              {connectionStatus !== 'idle' && (
+                <div className={`mt-4 p-3 rounded-md text-sm ${
+                  connectionStatus === 'testing' ? 'bg-blue-50 text-blue-700' :
+                  connectionStatus === 'success' ? 'bg-green-50 text-green-700' :
+                  'bg-red-50 text-red-700'
+                }`}>
+                  {connectionStatus === 'testing' ? 'Testing connection...' : connectionMessage}
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 mt-6">
                 <button
                   onClick={handleDialogCancel}
-                  disabled={isUploading}
+                  disabled={isUploading || connectionStatus === 'testing'}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
+                  onClick={handleTestConnection}
+                  disabled={isUploading || connectionStatus === 'testing'}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {connectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
+                </button>
+                <button
                   onClick={handleDialogUpload}
-                  disabled={isUploading}
+                  disabled={isUploading || connectionStatus === 'testing'}
                   className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
                 >
                   {isUploading ? 'Uploading...' : 'Upload'}
