@@ -36,6 +36,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [uploadUsername, setUploadUsername] = useState('neo4j');
   const [uploadPassword, setUploadPassword] = useState('');
   const [uploadDatabase, setUploadDatabase] = useState('neo4j');
+  const [uploadRootLabel, setUploadRootLabel] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [connectionMessage, setConnectionMessage] = useState('');
@@ -329,6 +330,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     setShowUploadDialog(false);
     setUploadUri('');
     setUploadPassword('');
+    setUploadRootLabel('');
     setConnectionStatus('idle');
     setConnectionMessage('');
   };
@@ -375,13 +377,17 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
 
     setIsUploading(true);
     try {
-      const payload = {
+      const payload: Record<string, string> = {
         neo4j_uri: uploadUri,
         neo4j_username: uploadUsername,
         neo4j_password: uploadPassword,
         neo4j_database: uploadDatabase,
         source_url: ontology.properties?.source_url || ontology.file_url || ''
       };
+
+      if (uploadRootLabel.trim()) {
+        payload.root_label = uploadRootLabel.trim();
+      }
 
       await BackendApiClient.request('/upload_ontology', {
         method: 'POST',
@@ -392,6 +398,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       setShowUploadDialog(false);
       setUploadUri('');
       setUploadPassword('');
+      setUploadRootLabel('');
     } catch (error) {
       console.error('Upload error:', error);
       alert(error instanceof Error ? error.message : 'Failed to upload ontology');
@@ -807,6 +814,20 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                     onChange={(e) => setUploadDatabase(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Root Label (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={uploadRootLabel}
+                    onChange={(e) => setUploadRootLabel(e.target.value)}
+                    placeholder="e.g. Spatial Object"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Start tree from a specific label (leave empty for all roots)</p>
                 </div>
               </div>
 
