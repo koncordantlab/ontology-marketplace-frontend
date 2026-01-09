@@ -284,6 +284,15 @@ class OntologyService {
       let createdItem: any = null;
       const raw: any = data as any;
 
+      // Check if backend indicated the ontology was skipped (already exists)
+      if (raw?.data?.created_ontologies && Array.isArray(raw.data.created_ontologies) && raw.data.created_ontologies.length === 0) {
+        // Ontology with same source_url already exists
+        return {
+          success: false,
+          error: 'URL already exists'
+        };
+      }
+
       if (Array.isArray(raw)) {
         createdItem = raw[0];
       } else if (raw?.data?.created_ontologies && Array.isArray(raw.data.created_ontologies)) {
@@ -299,8 +308,18 @@ class OntologyService {
       }
 
       // Build a normalized Ontology object with id fallback to uuid
+      const ontologyUuid = createdItem?.uuid || createdItem?.id || '';
+
+      // If we still don't have a UUID, something went wrong
+      if (!ontologyUuid) {
+        console.error('No UUID returned from backend:', raw);
+        return {
+          success: false,
+          error: 'Failed to create ontology - no ID returned from server'
+        };
+      }
       const normalized: Ontology = {
-        id: createdItem?.id || createdItem?.uuid || '',
+        id: ontologyUuid,
         name: createdItem?.name || ontology.name,
         description: createdItem?.description || ontology.description,
         properties: {
@@ -311,7 +330,8 @@ class OntologyService {
         createdAt: createdItem?.createdAt ? new Date(createdItem.createdAt) : new Date(),
         updatedAt: createdItem?.updatedAt ? new Date(createdItem.updatedAt) : new Date(),
         tags: createdItem?.tags || ontology.tags || [],
-      };
+        uuid: ontologyUuid,
+      } as Ontology & { uuid: string };
 
       return {
         success: true,

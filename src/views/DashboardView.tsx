@@ -339,12 +339,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                   if (!ontologyUuid) return null; // Skip if no UUID/ID
                   
                   return (
-                  <div 
-                    key={ontology.id} 
+                  <div
+                    key={ontology.id}
                     onClick={() => {
-                      const absoluteUrl = `${window.location.origin}${window.location.pathname}#ontology-details/${ontologyUuid}`;
-                      // Use _blank to always open new window, avoiding window reuse issues
-                      window.open(absoluteUrl, '_blank');
+                      onNavigate('ontology-details', ontologyUuid);
                     }}
                     className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer"
                   >
@@ -424,12 +422,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const ontologyUuid = (ontology as any).uuid || ontology.id;
-                              if (!ontologyUuid) return;
-                              
-                              const absoluteUrl = `${window.location.origin}${window.location.pathname}#ontology-details/${ontologyUuid}`;
-                              // Use _blank to always open new window
-                              window.open(absoluteUrl, '_blank');
+                              onNavigate('ontology-details', ontologyUuid);
                             }}
                             className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                           >
