@@ -9,6 +9,7 @@ import { LoginView } from './views/LoginView';
 import { UserProfileSettings } from './components/UserProfileSettings';
 import { authService } from './services/authService';
 import { userService } from './services/userService';
+import toast, { Toaster } from 'react-hot-toast';
 
 type ViewType = 'login' | 'dashboard' | 'use-ontology' | 'ontology-details' | 'edit-ontology' | 'new-ontology';
 
@@ -237,6 +238,14 @@ function App() {
     setCurrentUser(updatedUser);
   };
 
+  const showToastSuccessMessage = (message: string) => {
+    toast.success(message);
+  };
+
+  const showToastErrorMessage = (message: string) => {
+    toast.error(message);
+  };
+
   // Show loading spinner while checking authentication
   if (isLoading) {
     return (
@@ -385,6 +394,8 @@ function App() {
           <OntologyDetailsView 
             ontologyId={selectedOntologyId} 
             onNavigate={handleViewChange} 
+            showToastSuccess={showToastSuccessMessage}
+            showToastError={showToastErrorMessage}
           />
         )}
         {/* Edit ontology view removed */}
@@ -422,6 +433,7 @@ function App() {
           onClose={() => setShowSettings(false)}
         />
       )}
+      <Toaster />
     </div>
   );
 }
