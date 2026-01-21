@@ -10,11 +10,15 @@ import { TagManagerDialog } from '../components/TagManagerDialog';
 interface OntologyDetailsViewProps {
   ontologyId: string | null;
   onNavigate?: (view: string, ontologyId?: string) => void;
+  showToastSuccess?: (message: string) => void;
+  showToastError?: (message: string) => void;
 }
 
 export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   ontologyId,
-  onNavigate
+  onNavigate,
+  showToastSuccess,
+  showToastError
 }) => {
   const defaultImageUrl = (import.meta.env as any).VITE_DEFAULT_ONTOLOGY_IMAGE_URL || (import.meta.env as any).DEFAULT_ONTOLOGY_IMAGE_URL || '';
   const [ontology, setOntology] = useState<Ontology | null>(null);
@@ -99,6 +103,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
         setCanEdit(false);
         setCanDelete(false);
         setPermissionsLoading(false);
+        console.log('No ontology ID; cannot check permissions');
         return;
       }
       
@@ -311,7 +316,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     setIsDeleting(true);
     try {
       await BackendApiClient.deleteOntology(ontologyUuid);
-      alert('Ontology deleted successfully.');
+      showToastSuccess("Ontology deleted successfully.");
       // After deletion, navigate back to dashboard if handler provided
       if (typeof (typeof onNavigate !== 'undefined' && onNavigate) === 'function') {
         // @ts-ignore - onNavigate is optional in props
@@ -319,7 +324,8 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       }
     } catch (error) {
       console.error('Delete error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to delete ontology');
+      // alert(error instanceof Error ? error.message : 'Failed to delete ontology');
+      showToastError("Failed to delete ontology.");
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
@@ -394,7 +400,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
         body: payload,
       });
 
-      alert('Ontology uploaded successfully!');
+      showToastSuccess('Ontology uploaded successfully!');
       setShowUploadDialog(false);
       setUploadUri('');
       setUploadPassword('');
