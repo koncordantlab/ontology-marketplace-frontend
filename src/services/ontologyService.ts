@@ -279,16 +279,11 @@ class OntologyService {
 
       const data = await BackendApiClient.createOntology(payload);
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 1dedb51 (Use Ontology header hidden + post add_ontology routing fixed)
       // Normalize response: API may return various shapes
       // Expected: { success, data: { created_ontologies: [ { uuid, ... } ] } }
       let createdItem: any = null;
       const raw: any = data as any;
 
-<<<<<<< HEAD
       // Check if backend indicated the ontology was skipped (already exists)
       if (raw?.data?.created_ontologies && Array.isArray(raw.data.created_ontologies) && raw.data.created_ontologies.length === 0) {
         // Ontology with same source_url already exists
@@ -298,8 +293,6 @@ class OntologyService {
         };
       }
 
-=======
->>>>>>> 1dedb51 (Use Ontology header hidden + post add_ontology routing fixed)
       if (Array.isArray(raw)) {
         createdItem = raw[0];
       } else if (raw?.data?.created_ontologies && Array.isArray(raw.data.created_ontologies)) {
@@ -312,7 +305,6 @@ class OntologyService {
         createdItem = raw.ontology;
       } else {
         createdItem = raw;
-<<<<<<< HEAD
       }
 
       // Build a normalized Ontology object with id fallback to uuid
@@ -344,42 +336,6 @@ class OntologyService {
       return {
         success: true,
         data: normalized
-=======
-      // Normalize response: API may return array or object
-      let created: any = data as any;
-      if (Array.isArray(created)) {
-        created = created[0];
-      } else if (created && Array.isArray(created.data)) {
-        created = created.data[0];
-      } else if (created && Array.isArray(created.ontologies)) {
-        created = created.ontologies[0];
-=======
->>>>>>> 1dedb51 (Use Ontology header hidden + post add_ontology routing fixed)
-      }
-
-      // Build a normalized Ontology object with id fallback to uuid
-      const normalized: Ontology = {
-        id: createdItem?.id || createdItem?.uuid || '',
-        name: createdItem?.name || ontology.name,
-        description: createdItem?.description || ontology.description,
-        properties: {
-          source_url: createdItem?.source_url || createdItem?.properties?.source_url || (ontology.properties.source_url || ''),
-          image_url: createdItem?.image_url || createdItem?.properties?.image_url || (ontology.properties.image_url || ''),
-          is_public: typeof createdItem?.is_public === 'boolean' ? createdItem.is_public : ontology.properties.is_public,
-        },
-        createdAt: createdItem?.createdAt ? new Date(createdItem.createdAt) : new Date(),
-        updatedAt: createdItem?.updatedAt ? new Date(createdItem.updatedAt) : new Date(),
-        tags: createdItem?.tags || ontology.tags || [],
-      };
-
-      return {
-        success: true,
-<<<<<<< HEAD
-        data: created
->>>>>>> 49c63ce (Tags dialog moved to own file)
-=======
-        data: normalized
->>>>>>> 1dedb51 (Use Ontology header hidden + post add_ontology routing fixed)
       };
     } catch (error) {
       console.error('Error adding ontology:', error);
