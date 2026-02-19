@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Heart, Bookmark } from 'lucide-react';
 import { CommentSystem } from '../components/CommentSystem';
 import { TagManagerDialog } from '../components/TagManagerDialog';
 import { ontologyService, Ontology } from '../services/ontologyService';
@@ -53,6 +54,11 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
   const [permissionsLoading, setPermissionsLoading] = useState(true);
+
+  // Like/Save state
+  const [isLiked, setIsLiked] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
 
   useEffect(() => {
     const fetchOntology = async (retryCount = 0) => {
@@ -417,6 +423,20 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     const url = `#edit-ontology?id=${ontologyUuid}`;
     window.open(url, '_blank');
   };
+
+  const handleLike = () => {
+    if (isLiked) {
+      setLikeCount(prev => prev - 1);
+    } else {
+      setLikeCount(prev => prev + 1);
+    }
+    setIsLiked(!isLiked);
+  };
+
+  const handleToggleBookmark = () => {
+    setIsSaved(!isSaved);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
@@ -469,27 +489,58 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Two-column layout: Details (2/3) on left, Comments (1/3) on right */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left column: Details Panel (2/3) */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+          {/* Two-column header section: Image/Actions on left, Title/Description on right */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            {/* Left column: Image and Like/Save buttons */}
+            <div className="md:col-span-1">
+              {/* Image */}
+              {ontology.properties?.image_url && (
+                <div className="mb-4 flex items-center justify-center">
+                  <img
+                    src={ontology.properties.image_url}
+                    alt={ontology.name}
+                    className="w-full max-h-48 object-contain rounded-lg"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
 
-        {/* Details Panel */}
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6"></h2>
-          
-          {/* Image between DETAILS title and Title field */}
-          {ontology.properties?.image_url && (
-            <div className="mb-6 max-h-48 flex items-center justify-center">
-              <img 
-                src={ontology.properties.image_url} 
-                alt={ontology.name}
-                className="w-full h-full max-h-48 object-contain rounded-lg"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
+              {/* Like/Save buttons */}
+              <div className="flex items-center justify-center space-x-4">
+                <button
+                  onClick={handleLike}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-md border transition-colors duration-200 ${
+                    isLiked
+                      ? 'bg-red-50 border-red-200 text-red-600'
+                      : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <Heart className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
+                  <span className="text-sm font-medium">{likeCount > 0 ? likeCount : 'Like'}</span>
+                </button>
+                <button
+                  onClick={handleToggleBookmark}
+                  className={`flex items-center space-x-2 px-3 py-2 rounded-md border transition-colors duration-200 ${
+                    isSaved
+                      ? 'bg-blue-50 border-blue-200 text-blue-600'
+                      : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <Bookmark className={`h-5 w-5 ${isSaved ? 'fill-current' : ''}`} />
+                  <span className="text-sm font-medium">{isSaved ? 'Saved' : 'Save'}</span>
+                </button>
+              </div>
             </div>
-          )}
-          
-          <div className="space-y-6">
+
+            {/* Right column: Title and Description */}
+            <div className="md:col-span-2 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Title
@@ -498,7 +549,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                   {ontology.name}
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Description
@@ -507,7 +558,11 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                   {ontology.description}
                 </div>
               </div>
-              
+            </div>
+          </div>
+
+          {/* Single column section: Tags and below */}
+          <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tags
@@ -568,24 +623,22 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 </div>
               </div>
 
-              {ontology.node_count && (
+              {(ontology.node_count || ontology.relationship_count) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nodes
+                    Statistics
                   </label>
-                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                    {ontology.node_count.toLocaleString()}
-                  </div>
-                </div>
-              )}
-
-              {ontology.relationship_count && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Relationships
-                  </label>
-                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                    {ontology.relationship_count.toLocaleString()}
+                  <div className="grid grid-cols-2 gap-4">
+                    {ontology.node_count && (
+                      <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
+                        <span className="text-gray-500">Nodes:</span> {ontology.node_count.toLocaleString()}
+                      </div>
+                    )}
+                    {ontology.relationship_count && (
+                      <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
+                        <span className="text-gray-500">Relationships:</span> {ontology.relationship_count.toLocaleString()}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -618,27 +671,29 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 </button>
               </div>
             </div>
-        </div>
-
-        {/* Comments Section - Full Width Below */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mt-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">COMMENTS</h2>
+            </div>
           </div>
-          
-          <CommentSystem />
-          
-          {/* Add Comment Form */}
-          <div className="mt-6 pt-4 border-t border-gray-200">
-            <textarea
-              placeholder="Add a comment..."
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none text-sm"
-            />
-            <div className="mt-2 flex justify-end">
-              <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
-                Post Comment
-              </button>
+
+          {/* Right column: Comments (1/3) */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow-sm border p-6 sticky top-24">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">COMMENTS</h2>
+
+              <CommentSystem />
+
+              {/* Add Comment Form */}
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <textarea
+                  placeholder="Add a comment..."
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none text-sm"
+                />
+                <div className="mt-2 flex justify-end">
+                  <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
+                    Post Comment
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

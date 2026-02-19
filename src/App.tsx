@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { User, Menu, X } from 'lucide-react';
+import { User, Menu, X, MessageSquare } from 'lucide-react';
 import { UseOntologyView } from './views/UseOntologyView';
 import { OntologyDetailsView } from './views/OntologyDetailsView';
 // import { EditOntologyView } from './views/EditOntologyView';
 import { NewOntologyView } from './views/NewOntologyView';
 import { DashboardView } from './views/DashboardView';
 import { LoginView } from './views/LoginView';
+import { MessagesView } from './views/MessagesView';
 import { UserProfileSettings } from './components/UserProfileSettings';
 import { authService } from './services/authService';
 import { userService } from './services/userService';
 import toast, { Toaster } from 'react-hot-toast';
 
-type ViewType = 'login' | 'dashboard' | 'use-ontology' | 'ontology-details' | 'edit-ontology' | 'new-ontology';
+type ViewType = 'login' | 'dashboard' | 'use-ontology' | 'ontology-details' | 'edit-ontology' | 'new-ontology' | 'messages';
 
 interface User {
   id: string;
@@ -28,6 +29,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingHash, setPendingHash] = useState<string | null>(null);
+  const [unreadMessageCount] = useState<number>(3);
 
   // Simplified hash parser - processes hash into view and ID
   const parseHash = (hash: string): { view: ViewType | null; id: string | null } => {
@@ -167,6 +169,8 @@ function App() {
         return 'Edit Ontology';
       case 'new-ontology':
         return 'New Ontology';
+      case 'messages':
+        return 'Messages';
       default:
         return 'Ontology Marketplace';
     }
@@ -174,7 +178,6 @@ function App() {
 
   const navigationItems = [
     { id: 'dashboard' as ViewType, label: 'Dashboard' },
-    { id: 'new-ontology' as ViewType, label: 'Create New' },
   ];
 
   const handleViewChange = (view: string, ontologyId?: string) => {
@@ -249,14 +252,17 @@ function App() {
             </button>
 
             {/* Logo/Brand */}
-            <div className="flex items-center space-x-2">
+            <button
+              onClick={() => handleViewChange('dashboard')}
+              className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity duration-200"
+            >
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">OM</span>
               </div>
               <span className="hidden sm:block text-lg font-semibold text-gray-900">
                 Ontology Marketplace
               </span>
-            </div>
+            </button>
 
             {/* Desktop navigation */}
             <nav className="hidden md:flex items-center space-x-6 ml-8">
@@ -288,6 +294,20 @@ function App() {
           </div>
           
           <div className="flex items-center space-x-4">
+            {/* Messages button */}
+            <button
+              onClick={() => handleViewChange('messages')}
+              className="relative p-2 rounded-full hover:bg-gray-100 transition-colors duration-200"
+              title="Messages"
+            >
+              <MessageSquare className="h-5 w-5 text-gray-600" />
+              {unreadMessageCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-medium rounded-full h-5 w-5 flex items-center justify-center">
+                  {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                </span>
+              )}
+            </button>
+
             {/* User menu (click opens Account Settings) */}
             <div className="relative">
               <button
@@ -361,6 +381,9 @@ function App() {
         {/* Edit ontology view removed */}
         {currentView === 'new-ontology' && (
           <NewOntologyView onNavigate={handleViewChange} />
+        )}
+        {currentView === 'messages' && (
+          <MessagesView onNavigate={handleViewChange} />
         )}
       </main>
 
