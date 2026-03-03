@@ -41,6 +41,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [uploadPassword, setUploadPassword] = useState('');
   const [uploadDatabase, setUploadDatabase] = useState('neo4j');
   const [uploadRootLabel, setUploadRootLabel] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [connectionMessage, setConnectionMessage] = useState('');
@@ -337,6 +338,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
     setUploadUri('');
     setUploadPassword('');
     setUploadRootLabel('');
+    setUploadFile(null);
     setConnectionStatus('idle');
     setConnectionMessage('');
   };
@@ -377,37 +379,89 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
 
   const handleDialogUpload = async () => {
     if (!uploadUri || !uploadPassword || !ontology) {
-      alert('Please fill in all required fields');
+      showToastError?.('Please fill in all required fields.');
+      return;
+    }
+
+    // Validate that either a file is provided or the source URL points to a downloadable file
+    const sourceUrl = ontology.properties?.source_url || ontology.file_url || '';
+    if (!uploadFile && sourceUrl) {
+      const urlLower = sourceUrl.toLowerCase();
+      const hasValidExtension = ['.owl', '.ttl', '.rdf', '.xml'].some(ext => urlLower.includes(ext));
+      if (!hasValidExtension) {
+        showToastError?.('The source URL does not point to a downloadable OWL/TTL file. Please upload a file instead.');
+        return;
+      }
+    }
+    if (!uploadFile && !sourceUrl) {
+      showToastError?.('No file selected and no source URL available. Please upload a file.');
       return;
     }
 
     setIsUploading(true);
     try {
-      const payload: Record<string, string> = {
-        neo4j_uri: uploadUri,
-        neo4j_username: uploadUsername,
-        neo4j_password: uploadPassword,
-        neo4j_database: uploadDatabase,
-        source_url: ontology.properties?.source_url || ontology.file_url || ''
-      };
+      if (uploadFile) {
+        // File upload: use FormData + raw fetch
+        const { auth: firebaseAuth } = await import('../config/firebase');
+        const user = firebaseAuth.currentUser;
+        if (!user) throw new Error('User not authenticated');
+        const token = await user.getIdToken();
 
-      if (uploadRootLabel.trim()) {
-        payload.root_label = uploadRootLabel.trim();
+        const formData = new FormData();
+        formData.append('file', uploadFile);
+        formData.append('neo4j_uri', uploadUri);
+        formData.append('neo4j_username', uploadUsername);
+        formData.append('neo4j_password', uploadPassword);
+        formData.append('neo4j_database', uploadDatabase);
+        formData.append('source_url', ontology.properties?.source_url || ontology.file_url || '');
+        if (uploadRootLabel.trim()) {
+          formData.append('root_label', uploadRootLabel.trim());
+        }
+
+        const baseUrl = (import.meta.env as any).VITE_BACKEND_BASE_URL as string;
+        const response = await fetch(`${baseUrl}/upload_ontology_file`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        if (result.success === false) {
+          throw new Error(result.message || 'Upload failed');
+        }
+      } else {
+        // URL-only: use existing JSON endpoint
+        const payload: Record<string, string> = {
+          neo4j_uri: uploadUri,
+          neo4j_username: uploadUsername,
+          neo4j_password: uploadPassword,
+          neo4j_database: uploadDatabase,
+          source_url: ontology.properties?.source_url || ontology.file_url || ''
+        };
+        if (uploadRootLabel.trim()) {
+          payload.root_label = uploadRootLabel.trim();
+        }
+
+        await BackendApiClient.request('/upload_ontology', {
+          method: 'POST',
+          body: payload,
+        });
       }
-
-      await BackendApiClient.request('/upload_ontology', {
-        method: 'POST',
-        body: payload,
-      });
 
       showToastSuccess('Ontology uploaded successfully!');
       setShowUploadDialog(false);
       setUploadUri('');
       setUploadPassword('');
       setUploadRootLabel('');
+      setUploadFile(null);
     } catch (error) {
       console.error('Upload error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to upload ontology');
+      showToastError?.(error instanceof Error ? error.message : 'Failed to upload ontology');
     } finally {
       setIsUploading(false);
     }
@@ -830,10 +884,40 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                     type="text"
                     value={uploadRootLabel}
                     onChange={(e) => setUploadRootLabel(e.target.value)}
-                    placeholder="e.g. Spatial Object"
+                    placeholder="e.g. Root Node"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <p className="mt-1 text-xs text-gray-500">Start tree from a specific label (leave empty for all roots)</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Ontology File *
+                  </label>
+                  <input
+                    type="file"
+                    accept=".owl,.ttl,.rdf,.xml"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setUploadFile(file);
+                    }}
+                    className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Upload an OWL or TTL file directly. If no file is chosen, the source URL will be used.</p>
+                  {uploadFile && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
+                        {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setUploadFile(null)}
+                        className="text-xs text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
