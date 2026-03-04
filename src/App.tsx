@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { User, Menu, X, Upload } from 'lucide-react';
+import { User, Menu, X, MessageSquare } from 'lucide-react';
 import { UseOntologyView } from './views/UseOntologyView';
 import { OntologyDetailsView } from './views/OntologyDetailsView';
 // import { EditOntologyView } from './views/EditOntologyView';
 import { NewOntologyView } from './views/NewOntologyView';
 import { DashboardView } from './views/DashboardView';
 import { LoginView } from './views/LoginView';
+import { MessagesView } from './views/MessagesView';
 import { UserProfileSettings } from './components/UserProfileSettings';
 import { authService } from './services/authService';
 import { userService } from './services/userService';
 import toast, { Toaster } from 'react-hot-toast';
 
-type ViewType = 'login' | 'dashboard' | 'use-ontology' | 'ontology-details' | 'edit-ontology' | 'new-ontology';
+type ViewType = 'login' | 'dashboard' | 'use-ontology' | 'ontology-details' | 'edit-ontology' | 'new-ontology' | 'messages';
 
 interface User {
   id: string;
@@ -28,18 +29,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingHash, setPendingHash] = useState<string | null>(null);
-
-  // Universal upload dialog state
-  const [showUploadDialog, setShowUploadDialog] = useState(false);
-  const [uploadUri, setUploadUri] = useState('');
-  const [uploadUsername, setUploadUsername] = useState('neo4j');
-  const [uploadPassword, setUploadPassword] = useState('');
-  const [uploadDatabase, setUploadDatabase] = useState('neo4j');
-  const [uploadRootLabel, setUploadRootLabel] = useState('');
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadConnectionStatus, setUploadConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [uploadConnectionMessage, setUploadConnectionMessage] = useState('');
+  const [unreadMessageCount] = useState<number>(3);
 
   // Simplified hash parser - processes hash into view and ID
   const parseHash = (hash: string): { view: ViewType | null; id: string | null } => {
@@ -179,6 +169,8 @@ function App() {
         return 'Edit Ontology';
       case 'new-ontology':
         return 'New Ontology';
+      case 'messages':
+        return 'Messages';
       default:
         return 'Ontology Marketplace';
     }
@@ -186,7 +178,6 @@ function App() {
 
   const navigationItems = [
     { id: 'dashboard' as ViewType, label: 'Dashboard' },
-    { id: 'new-ontology' as ViewType, label: 'Create New' },
   ];
 
   const handleViewChange = (view: string, ontologyId?: string) => {
@@ -226,115 +217,8 @@ function App() {
     toast.error(message);
   };
 
-  const handleUploadDialogCancel = () => {
-    setShowUploadDialog(false);
-    setUploadUri('');
-    setUploadPassword('');
-    setUploadRootLabel('');
-    setUploadFile(null);
-    setUploadConnectionStatus('idle');
-    setUploadConnectionMessage('');
-  };
-
-  const handleUploadTestConnection = async () => {
-    if (!uploadUri || !uploadPassword) {
-      setUploadConnectionStatus('error');
-      setUploadConnectionMessage('URI and password are required');
-      return;
-    }
-    setUploadConnectionStatus('testing');
-    setUploadConnectionMessage('');
-    try {
-      const { auth: firebaseAuth } = await import('./config/firebase');
-      const user = firebaseAuth.currentUser;
-      if (!user) throw new Error('User not authenticated');
-      const token = await user.getIdToken();
-
-      const baseUrl = (import.meta.env as any).VITE_BACKEND_BASE_URL as string;
-      const response = await fetch(`${baseUrl}/test_neo4j_connection`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          neo4j_uri: uploadUri,
-          neo4j_username: uploadUsername,
-          neo4j_password: uploadPassword,
-          neo4j_database: uploadDatabase,
-        }),
-      });
-      const result = await response.json();
-      if (result.success) {
-        setUploadConnectionStatus('success');
-        setUploadConnectionMessage(result.message || 'Connection successful');
-      } else {
-        setUploadConnectionStatus('error');
-        setUploadConnectionMessage(result.message || 'Connection failed');
-      }
-    } catch (error) {
-      setUploadConnectionStatus('error');
-      setUploadConnectionMessage(error instanceof Error ? error.message : 'Failed to test connection');
-    }
-  };
-
-  const handleUploadSubmit = async () => {
-    if (!uploadUri || !uploadPassword) {
-      toast.error('Please fill in Neo4j URI and password.');
-      return;
-    }
-    if (!uploadFile) {
-      toast.error('Please select an OWL or TTL file to upload.');
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const { auth: firebaseAuth } = await import('./config/firebase');
-      const user = firebaseAuth.currentUser;
-      if (!user) throw new Error('User not authenticated');
-      const token = await user.getIdToken();
-
-      const formData = new FormData();
-      formData.append('file', uploadFile);
-      formData.append('neo4j_uri', uploadUri);
-      formData.append('neo4j_username', uploadUsername);
-      formData.append('neo4j_password', uploadPassword);
-      formData.append('neo4j_database', uploadDatabase);
-      formData.append('source_url', '');
-      if (uploadRootLabel.trim()) {
-        formData.append('root_label', uploadRootLabel.trim());
-      }
-
-      const baseUrl = (import.meta.env as any).VITE_BACKEND_BASE_URL as string;
-      const response = await fetch(`${baseUrl}/upload_ontology_file`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-      if (result.success === false) {
-        throw new Error(result.message || 'Upload failed');
-      }
-
-      toast.success('Ontology uploaded to Neo4j successfully!');
-      handleUploadDialogCancel();
-    } catch (error) {
-      console.error('Upload error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to upload ontology');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  // Show loading spinner while checking authentication
-  if (isLoading) {
+  // Show loading spinner while checking authentication or if there's a pending hash
+  if (isLoading || pendingHash) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -368,14 +252,17 @@ function App() {
             </button>
 
             {/* Logo/Brand */}
-            <div className="flex items-center space-x-2">
+            <button
+              onClick={() => handleViewChange('dashboard')}
+              className="flex items-center space-x-2 cursor-pointer hover:opacity-80 transition-opacity duration-200"
+            >
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">OM</span>
               </div>
               <span className="hidden sm:block text-lg font-semibold text-gray-900">
                 Ontology Marketplace
               </span>
-            </div>
+            </button>
 
             {/* Desktop navigation */}
             <nav className="hidden md:flex items-center space-x-6 ml-8">
@@ -407,41 +294,41 @@ function App() {
           </div>
           
           <div className="flex items-center space-x-4">
-            {currentUser && (
+            {/* Messages button */}
+            <button
+              onClick={() => handleViewChange('messages')}
+              className="relative p-2 rounded-full hover:bg-gray-100 transition-colors duration-200"
+              title="Messages"
+            >
+              <MessageSquare className="h-5 w-5 text-gray-600" />
+              {unreadMessageCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-medium rounded-full h-5 w-5 flex items-center justify-center">
+                  {unreadMessageCount > 9 ? '9+' : unreadMessageCount}
+                </span>
+              )}
+            </button>
+
+            {/* User menu (click opens Account Settings) */}
+            <div className="relative">
               <button
-                onClick={() => setShowUploadDialog(true)}
-                className="flex items-center space-x-1 px-3 py-2 rounded-md text-white text-sm font-medium transition-colors duration-200"
-                style={{ backgroundColor: '#4A90D9' }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#3A7BC8')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#4A90D9')}
-                title="Upload ontology file to Neo4j"
+                onClick={() => setShowSettings(true)}
+                className="flex items-center space-x-2 p-2 rounded-full border border-gray-300 hover:bg-gray-50 transition-colors duration-200"
+                title="Account Settings"
               >
-                <Upload className="h-4 w-4" />
-                <span className="hidden sm:inline">Upload</span>
+                {currentUser.photoURL ? (
+                  <img
+                    src={currentUser.photoURL}
+                    alt={currentUser.name}
+                    className="h-5 w-5 rounded-full object-cover"
+                  />
+                ) : (
+                  <User className="h-5 w-5 text-gray-600" />
+                )}
+                <span className="hidden sm:block text-sm font-medium text-gray-700">
+                  {currentUser.name}
+                </span>
               </button>
-            )}
-            {currentUser && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowSettings(true)}
-                  className="flex items-center space-x-2 p-2 rounded-full border border-gray-300 hover:bg-gray-50 transition-colors duration-200"
-                  title="Account Settings"
-                >
-                  {currentUser.photoURL ? (
-                    <img
-                      src={currentUser.photoURL}
-                      alt={currentUser.name}
-                      className="h-5 w-5 rounded-full object-cover"
-                    />
-                  ) : (
-                    <User className="h-5 w-5 text-gray-600" />
-                  )}
-                  <span className="hidden sm:block text-sm font-medium text-gray-700">
-                    {currentUser.name}
-                  </span>
-                </button>
-              </div>
-            )}
+            </div>
           </div>
         </div>
 
@@ -469,21 +356,6 @@ function App() {
                   {item.label}
                 </button>
               ))}
-              {currentUser && (
-                <>
-                  <div className="border-t border-gray-200 pt-2 mt-2"></div>
-                  <button
-                    onClick={() => {
-                      setShowUploadDialog(true);
-                      setMobileMenuOpen(false);
-                    }}
-                    className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-green-700 hover:bg-green-50 transition-colors duration-200"
-                  >
-                    <Upload className="h-4 w-4" />
-                    <span>Upload to Neo4j</span>
-                  </button>
-                </>
-              )}
               <div className="border-t border-gray-200 pt-2 mt-2"></div>
             </nav>
           </div>
@@ -510,6 +382,9 @@ function App() {
         {currentView === 'new-ontology' && (
           <NewOntologyView onNavigate={handleViewChange} />
         )}
+        {currentView === 'messages' && (
+          <MessagesView onNavigate={handleViewChange} />
+        )}
       </main>
 
       {/* User Profile Settings Modal */}
@@ -519,145 +394,6 @@ function App() {
           onUpdate={handleUserUpdate}
           onClose={() => setShowSettings(false)}
         />
-      )}
-
-      {/* Universal Upload to Neo4j Dialog */}
-      {showUploadDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Upload to Neo4j Database</h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Neo4j URI *
-                </label>
-                <input
-                  type="text"
-                  value={uploadUri}
-                  onChange={(e) => setUploadUri(e.target.value)}
-                  placeholder="neo4j+s://xxxx.databases.neo4j.io"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={uploadUsername}
-                  onChange={(e) => setUploadUsername(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password *
-                </label>
-                <input
-                  type="password"
-                  value={uploadPassword}
-                  onChange={(e) => setUploadPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Database
-                </label>
-                <input
-                  type="text"
-                  value={uploadDatabase}
-                  onChange={(e) => setUploadDatabase(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Root Label (optional)
-                </label>
-                <input
-                  type="text"
-                  value={uploadRootLabel}
-                  onChange={(e) => setUploadRootLabel(e.target.value)}
-                  placeholder="e.g. Root Node"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="mt-1 text-xs text-gray-500">Start tree from a specific label (leave empty for all roots)</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Ontology File *
-                </label>
-                <input
-                  type="file"
-                  accept=".owl,.ttl,.rdf,.xml"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    setUploadFile(file);
-                  }}
-                  className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
-                />
-                <p className="mt-1 text-xs text-gray-500">Upload an OWL or TTL file directly.</p>
-                {uploadFile && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded">
-                      {uploadFile.name} ({(uploadFile.size / 1024).toFixed(1)} KB)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setUploadFile(null)}
-                      className="text-xs text-red-600 hover:text-red-800"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Connection Status */}
-            {uploadConnectionStatus !== 'idle' && (
-              <div className={`mt-4 p-3 rounded-md text-sm ${
-                uploadConnectionStatus === 'testing' ? 'bg-blue-50 text-blue-700' :
-                uploadConnectionStatus === 'success' ? 'bg-green-50 text-green-700' :
-                'bg-red-50 text-red-700'
-              }`}>
-                {uploadConnectionStatus === 'testing' ? 'Testing connection...' : uploadConnectionMessage}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={handleUploadDialogCancel}
-                disabled={isUploading || uploadConnectionStatus === 'testing'}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUploadTestConnection}
-                disabled={isUploading || uploadConnectionStatus === 'testing'}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                {uploadConnectionStatus === 'testing' ? 'Testing...' : 'Test Connection'}
-              </button>
-              <button
-                onClick={handleUploadSubmit}
-                disabled={isUploading || uploadConnectionStatus === 'testing'}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
-              >
-                {isUploading ? 'Uploading...' : 'Upload'}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       <Toaster />
