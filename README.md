@@ -2,6 +2,22 @@
 
 A modern web application for creating, managing, and using ontologies with FastAPI backend integration, real-time data management, and comprehensive user dashboards.
 
+## Table of Contents
+
+- [Quick Start](#-quick-start)
+- [Features](#-features)
+- [Technology Stack](#️-technology-stack)
+- [Project Structure](#-project-structure)
+- [API Endpoints](#-api-endpoints)
+- [Usage Guide](#-usage-guide)
+- [Security](#-security)
+- [Production Deployment](#-production-deployment)
+- [Development](#-development)
+- [Troubleshooting](#-troubleshooting)
+- [License](#-license)
+- [Contributing](#-contributing)
+- [Project Status](#-project-status)
+
 ## 🚀 Quick Start
 
 ### Step 1: Clone the Repository and Install Dependencies
@@ -105,6 +121,14 @@ npm run lint     # Run ESLint to check code quality
 - **User Management**: Complete authentication and profile system
 - **Database Integration**: Upload ontologies to databases like Neo4j
 
+### Community Features
+- **Comments & Replies**: Threaded comments on ontologies with 2,000 character limit, 15-minute edit window, and soft/hard deletion
+- **Emoji Reactions**: Fixed set of 6 emoji reactions (toggle on/off) with ontology owner moderation
+- **Flagging**: Flag comments for admin review with 5 predefined reasons
+- **Activity Feed**: Unified feed of comments, replies, and messages with read/unread tracking
+- **Admin Messaging**: Admin-to-user messaging with threaded replies
+- **Search**: Full-text search across comments, messages, and activity
+
 ### Dashboard Features
 - **Real-time Overview**: View all your ontologies at a glance
 - **Categories**: Filter by All, Recently Modified, Public, Private
@@ -114,7 +138,8 @@ npm run lint     # Run ESLint to check code quality
 
 ### User Experience
 - **Modern UI**: Clean, intuitive interface with Tailwind CSS
-- **Loading States**: Proper feedback during operations
+- **Loading States**: Proper feedback during operations (including comment submission indicators)
+- **Relative Timestamps**: Comment times displayed as "2 hours ago", "3 days ago", etc.
 - **Error Handling**: Clear error messages and fallbacks
 - **Accessibility**: Keyboard navigation and screen reader support
 
@@ -132,6 +157,11 @@ npm run lint     # Run ESLint to check code quality
 - **Backend Storage** (handled by FastAPI backend)
 - **Cloudinary** for image uploads
 
+### Testing
+- **Vitest** for unit and integration testing
+- **React Testing Library** for component testing
+- **V8 Coverage** with delta tracking between runs
+
 ### Development Tools
 - **ESLint** for code quality
 - **TypeScript** for type safety
@@ -141,28 +171,45 @@ npm run lint     # Run ESLint to check code quality
 
 ```
 src/
-├── components/          # Reusable UI components
-│   ├── OntologySelector.tsx    # Ontology selection dropdown
-│   ├── ThumbnailUpload.tsx     # Image upload component
-│   ├── Toggle.tsx              # Toggle switch component
-│   └── UserProfileSettings.tsx # User profile management
-├── views/               # Main application views
-│   ├── DashboardView.tsx       # Main dashboard
-│   ├── LoginView.tsx           # Authentication
-│   ├── NewOntologyView.tsx     # Create new ontology
-│   ├── UseOntologyView.tsx     # Use/upload ontologies
-│   ├── (removed) EditOntologyView.tsx
-│   └── OntologyDetailsView.tsx # View ontology details
-├── services/            # Business logic and API services
-│   ├── authService.ts          # Firebase authentication
-│   ├── ontologyService.ts      # Ontology API operations
-│   ├── cloudinaryService.ts    # Image upload service
-│   └── simpleUploadService.ts  # Simple upload service
-├── config/              # Configuration files
-│   ├── firebase.ts             # Firebase configuration
-│   ├── backendApi.ts           # Backend API configuration
-│   └── cloudinary.ts           # Cloudinary configuration
-└── App.tsx              # Main application component
+├── components/              # Reusable UI components
+│   ├── ActivityItem.tsx         # Activity feed item (comment, reply, message)
+│   ├── CommentItem.tsx          # Single comment with reactions, reply, edit/delete, flag
+│   ├── CommentSystem.tsx        # API-driven comment list and submission
+│   ├── CommentsDrawer.tsx       # Slide-out comments panel
+│   ├── FlagDialog.tsx           # Flag reason selector modal
+│   ├── MessageReplyForm.tsx     # Reply input for message threads
+│   ├── MessageThread.tsx        # Full message thread view
+│   ├── OntologySelector.tsx     # Ontology selection dropdown
+│   ├── ReactionPicker.tsx       # 6-emoji reaction picker
+│   ├── ThumbnailUpload.tsx      # Image upload component
+│   ├── Toggle.tsx               # Toggle switch component
+│   └── UserProfileSettings.tsx  # User profile management
+├── views/                   # Main application views
+│   ├── DashboardView.tsx        # Main dashboard
+│   ├── LoginView.tsx            # Authentication
+│   ├── MessagesView.tsx         # Activity feed with search and type filters
+│   ├── NewOntologyView.tsx      # Create new ontology
+│   ├── OntologyDetailsView.tsx  # View ontology details with comments
+│   └── UseOntologyView.tsx      # Use/upload ontologies
+├── services/                # Business logic and API services
+│   ├── activityService.ts       # Activity feed and unread count
+│   ├── authService.ts           # Firebase authentication
+│   ├── cloudinaryService.ts     # Image upload service
+│   ├── commentService.ts        # Comment, reply, reaction, flag operations
+│   ├── messageService.ts        # Admin messaging and replies
+│   ├── ontologyService.ts       # Ontology API operations
+│   └── simpleUploadService.ts   # Simple upload service
+├── types/                   # TypeScript type definitions
+│   └── comment.ts               # Comment, Message, Flag, ActivityItem interfaces
+├── utils/                   # Utility functions
+│   └── timeAgo.ts               # Relative time formatting
+├── test/                    # Test setup
+│   └── setup.ts                 # Vitest + Testing Library configuration
+├── config/                  # Configuration files
+│   ├── firebase.ts              # Firebase configuration
+│   ├── backendApi.ts            # Backend API configuration
+│   └── cloudinary.ts            # Cloudinary configuration
+└── App.tsx                  # Main application component
 ```
 
 ## 🔧 API Endpoints
@@ -198,6 +245,30 @@ All API calls go through an API Gateway, the base url is set in the .env file
 - **Auth**: Bearer token required (Firebase ID token)
 - **Payload**: Ontology ID
 - **Returns**: Deletion confirmation
+
+#### Comment Operations
+- `GET /ontologies/{id}/comments` - List comments for an ontology (paginated)
+- `POST /ontologies/{id}/comments` - Add a comment
+- `PUT /comments/{id}` - Edit a comment (author only, within 15-min window)
+- `DELETE /comments/{id}` - Delete a comment (author or ontology owner)
+- `POST /comments/{id}/replies` - Reply to a comment
+- `GET /comments/{id}/replies` - List replies to a comment
+- `POST /comments/{id}/reactions` - Toggle emoji reaction
+- `DELETE /comments/{id}/reactions/{emoji}` - Remove own reaction
+- `POST /comments/{id}/flag` - Flag a comment for review
+
+#### Activity Feed
+- `GET /users/me/activity` - Get activity feed (filterable by type, searchable)
+- `GET /users/me/activity/unread-count` - Get unread count for badge
+- `PUT /users/me/activity/{id}/read` - Mark item as read
+- `PUT /users/me/activity/read-all` - Mark all items as read
+
+#### Admin Messaging
+- `POST /messages` - Send message to user (admin only)
+- `GET /messages` - List messages (inbox)
+- `GET /messages/{id}` - Get message with thread
+- `POST /messages/{id}/reply` - Reply to a message
+- `PUT /messages/{id}/read` - Mark message as read
 
 ## 🎮 Usage Guide
 
@@ -287,13 +358,16 @@ npm run dev          # Start development server
 npm run build        # Build for production
 npm run preview      # Preview production build
 npm run lint         # Run ESLint
+npm run test         # Run all tests once
+npm run test:watch   # Run tests in watch mode
+./tests.sh           # Run tests with coverage and delta tracking
 ```
 
 ### Development Workflow
 1. **Start Dev Server**: Run `npm run dev` to start Vite dev server on http://localhost:5173
 2. **Hot Reload**: Vite automatically reloads when you make changes to source files
-3. **Testing**: Test all features with real backend API
-4. **Backend Integration**: All API calls go through Zuplo Gateway with Firebase auth tokens
+3. **Run Tests**: Run `./tests.sh` to execute all tests with coverage reporting
+4. **Backend Integration**: All API calls go through the backend API with Firebase auth tokens
 5. **Build**: Run `npm run build` to create production build in `dist/` folder
 6. **Preview**: Run `npm run preview` to preview production build locally
 
@@ -374,11 +448,13 @@ This project is licensed under the MIT License.
 
 ### Current Features
 - **Dashboard**: Complete ontology management interface
-- **API Integration**: FastAPI backend via Zuplo API Gateway
+- **API Integration**: FastAPI backend with Firebase auth tokens
 - **User Management**: Full authentication and profile system (Firebase Auth)
 - **Ontology Operations**: Create, read, update, delete
 - **Search & Filter**: Advanced filtering and search capabilities
 - **Image Upload**: Cloudinary integration for thumbnails
 - **Database Upload**: Upload ontologies to external databases
+- **Community**: Comments, replies, reactions, flagging, activity feed, admin messaging
+- **Testing**: 83 tests across 14 test files with coverage tracking
 
 **Ready to use**: Clone, configure environment variables, and run `npm run dev`!

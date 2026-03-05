@@ -116,3 +116,6 @@ $RECYCLE.BIN/
 # Test files
 test-results/
 coverage/
+# Coverage history
+.coverage_history/
+coverage/

@@ -10,6 +10,7 @@ import { MessagesView } from './views/MessagesView';
 import { UserProfileSettings } from './components/UserProfileSettings';
 import { authService } from './services/authService';
 import { userService } from './services/userService';
+import { activityService } from './services/activityService';
 import toast, { Toaster } from 'react-hot-toast';
 
 type ViewType = 'login' | 'dashboard' | 'use-ontology' | 'ontology-details' | 'edit-ontology' | 'new-ontology' | 'messages';
@@ -29,7 +30,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingHash, setPendingHash] = useState<string | null>(null);
-  const [unreadMessageCount] = useState<number>(3);
+  const [unreadMessageCount, setUnreadMessageCount] = useState<number>(0);
 
   // Simplified hash parser - processes hash into view and ID
   const parseHash = (hash: string): { view: ViewType | null; id: string | null } => {
@@ -101,6 +102,20 @@ function App() {
 
     return unsubscribe;
   }, []);
+
+  // Fetch unread count from API
+  useEffect(() => {
+    if (!currentUser) return;
+    const fetchUnread = async () => {
+      const result = await activityService.getUnreadCount();
+      if (result.success && result.data) {
+        setUnreadMessageCount(result.data.count);
+      }
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 60000); // Poll every minute
+    return () => clearInterval(interval);
+  }, [currentUser]);
 
   // Handle hash-based URLs for opening views in new tabs
   useEffect(() => {

@@ -1,142 +1,152 @@
-import React, { useState } from 'react';
-
-interface Message {
-  id: string;
-  ontologyId: string;
-  ontologyName: string;
-  author: string;
-  content: string;
-  timestamp: string;
-  isRead: boolean;
-  type: 'comment' | 'mention' | 'update';
-}
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, CheckCheck } from 'lucide-react';
+import { ActivityItem } from '../components/ActivityItem';
+import { MessageThread } from '../components/MessageThread';
+import { activityService } from '../services/activityService';
+import type { ActivityItem as ActivityItemType } from '../types/comment';
 
 interface MessagesViewProps {
   onNavigate: (view: string, ontologyId?: string) => void;
 }
 
+const TABS = [
+  { key: '', label: 'All' },
+  { key: 'comment', label: 'Comments' },
+  { key: 'reply', label: 'Replies' },
+  { key: 'message', label: 'Messages' },
+] as const;
+
 export const MessagesView: React.FC<MessagesViewProps> = ({ onNavigate }) => {
-  const [messages] = useState<Message[]>([
-    {
-      id: '1',
-      ontologyId: 'ont-1',
-      ontologyName: 'Medical Terminology Ontology',
-      author: 'Dr. Sarah Chen',
-      content: 'Great work on the hierarchy structure! I have a few suggestions for the cardiovascular section.',
-      timestamp: '2 hours ago',
-      isRead: false,
-      type: 'comment',
-    },
-    {
-      id: '2',
-      ontologyId: 'ont-2',
-      ontologyName: 'E-Commerce Product Taxonomy',
-      author: 'Mike Johnson',
-      content: 'The product categorization looks solid. Can we add more granularity to the electronics category?',
-      timestamp: '5 hours ago',
-      isRead: false,
-      type: 'comment',
-    },
-    {
-      id: '3',
-      ontologyId: 'ont-3',
-      ontologyName: 'Academic Research Ontology',
-      author: 'Prof. Emily Watson',
-      content: 'I\'ve updated the citation relationships as discussed. Please review when you get a chance.',
-      timestamp: '1 day ago',
-      isRead: false,
-      type: 'update',
-    },
-  ]);
+  const [items, setItems] = useState<ActivityItemType[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('');
+  const [search, setSearch] = useState('');
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  const getTypeLabel = (type: Message['type']) => {
-    switch (type) {
-      case 'comment':
-        return 'Comment';
-      case 'mention':
-        return 'Mention';
-      case 'update':
-        return 'Update';
-      default:
-        return 'Message';
+  const fetchItems = useCallback(async (typeFilter?: string, searchQuery?: string) => {
+    setLoading(true);
+    const result = await activityService.getActivityFeed(
+      20, 0,
+      typeFilter || undefined,
+      searchQuery || undefined
+    );
+    if (result.success && result.data) {
+      setItems(result.data.items);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchItems(activeTab, search);
+  }, [activeTab, fetchItems]);
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      fetchItems(activeTab, value);
+    }, 300);
+  };
+
+  const handleItemClick = (item: ActivityItemType) => {
+    if (item.type === 'message') {
+      setSelectedMessageId(item.id);
+    } else if (item.ontology_id) {
+      onNavigate('ontology-details', item.ontology_id);
     }
   };
 
-  const getTypeColor = (type: Message['type']) => {
-    switch (type) {
-      case 'comment':
-        return 'bg-blue-100 text-blue-800';
-      case 'mention':
-        return 'bg-purple-100 text-purple-800';
-      case 'update':
-        return 'bg-green-100 text-green-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  const handleMarkRead = async (itemId: string) => {
+    await activityService.markRead(itemId);
+    setItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, is_read: true } : i)));
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  const handleMarkAllRead = async () => {
+    await activityService.markAllRead();
+    setItems((prev) => prev.map((i) => ({ ...i, is_read: true })));
   };
 
-  const handleMessageClick = (message: Message) => {
-    onNavigate('ontology-details', message.ontologyId);
-  };
+  if (selectedMessageId) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+        <div className="max-w-4xl mx-auto">
+          <MessageThread
+            messageId={selectedMessageId}
+            onBack={() => { setSelectedMessageId(null); fetchItems(activeTab, search); }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Stay updated with comments and activity on your ontologies
-          </p>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Stay updated with comments and activity on your ontologies
+            </p>
+          </div>
+          <button
+            onClick={handleMarkAllRead}
+            className="flex items-center gap-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-md"
+            data-testid="mark-all-read"
+          >
+            <CheckCheck className="h-4 w-4" /> Mark all read
+          </button>
         </div>
 
+        {/* Search */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Search messages..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            data-testid="search-input"
+          />
+        </div>
+
+        {/* Type filter tabs */}
+        <div className="flex gap-2 mb-4" data-testid="filter-tabs">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-3 py-1 text-sm rounded-full ${
+                activeTab === tab.key
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Items */}
         <div className="space-y-4">
-          {messages.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+          {loading ? (
+            <div className="text-center py-8" data-testid="loading">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm border p-8 text-center" data-testid="empty-state">
               <p className="text-gray-500">No messages yet</p>
             </div>
           ) : (
-            messages.map((message) => (
-              <button
-                key={message.id}
-                onClick={() => handleMessageClick(message)}
-                className={`w-full text-left bg-white rounded-lg shadow-sm border p-4 hover:shadow-md transition-shadow duration-200 ${
-                  !message.isRead ? 'border-l-4 border-l-blue-500' : ''
-                }`}
-              >
-                <div className="flex items-start space-x-4">
-                  <div className="flex-shrink-0">
-                    <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium text-white">
-                        {getInitials(message.author)}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex-grow min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium text-gray-900">{message.author}</span>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getTypeColor(message.type)}`}>
-                          {getTypeLabel(message.type)}
-                        </span>
-                      </div>
-                      <span className="text-xs text-gray-500">{message.timestamp}</span>
-                    </div>
-
-                    <p className="text-sm text-blue-600 font-medium mb-1">
-                      {message.ontologyName}
-                    </p>
-
-                    <p className="text-sm text-gray-700 line-clamp-2">
-                      {message.content}
-                    </p>
-                  </div>
-                </div>
-              </button>
+            items.map((item) => (
+              <ActivityItem
+                key={item.id}
+                item={item}
+                onClick={handleItemClick}
+                onMarkRead={handleMarkRead}
+              />
             ))
           )}
         </div>

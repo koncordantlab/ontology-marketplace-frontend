@@ -38,7 +38,37 @@ export const BACKEND_API = {
     GET: '/get_user',
     UPDATE: '/update_user',
   },
-  
+
+  // Comment endpoints
+  COMMENTS: {
+    LIST: (ontologyId: string) => `/ontologies/${ontologyId}/comments`,
+    CREATE: (ontologyId: string) => `/ontologies/${ontologyId}/comments`,
+    EDIT: (commentId: string) => `/comments/${commentId}`,
+    DELETE: (commentId: string) => `/comments/${commentId}`,
+    REPLIES: (commentId: string) => `/comments/${commentId}/replies`,
+    REACTIONS: (commentId: string) => `/comments/${commentId}/reactions`,
+    REMOVE_REACTION: (commentId: string, emoji: string) => `/comments/${commentId}/reactions/${emoji}`,
+    REMOVE_REACTION_BY_ID: (commentId: string, reactionId: string) => `/comments/${commentId}/reactions/by-id/${reactionId}`,
+    FLAG: (commentId: string) => `/comments/${commentId}/flag`,
+  },
+
+  // Activity feed endpoints
+  ACTIVITY: {
+    FEED: '/users/me/activity',
+    UNREAD_COUNT: '/users/me/activity/unread-count',
+    MARK_READ: (itemId: string) => `/users/me/activity/${itemId}/read`,
+    MARK_ALL_READ: '/users/me/activity/read-all',
+  },
+
+  // Message endpoints
+  MESSAGES: {
+    LIST: '/messages',
+    SEND: '/messages',
+    GET: (messageId: string) => `/messages/${messageId}`,
+    REPLY: (messageId: string) => `/messages/${messageId}/reply`,
+    MARK_READ: (messageId: string) => `/messages/${messageId}/read`,
+  },
+
   // Database endpoints
   DATABASE: {
     UPLOAD_TO_NEO4J: (ontologyId: string) => `/api/ontologies/${ontologyId}/upload-to-neo4j`,
