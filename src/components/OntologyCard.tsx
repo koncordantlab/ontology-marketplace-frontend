@@ -16,7 +16,7 @@ interface OntologyCardProps {
   onEdit: () => void;
 }
 
-export const OntologyCard: React.FC<OntologyCardProps> = ({
+export const OntologyCard: React.FC<OntologyCardProps> = React.memo(({
   ontology,
   onView,
   onEdit
@@ -110,4 +110,4 @@ export const OntologyCard: React.FC<OntologyCardProps> = ({
       </div>
     </div>
   );
-};
+});

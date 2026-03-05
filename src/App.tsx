@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { User, Menu, X, MessageSquare } from 'lucide-react';
-import { UseOntologyView } from './views/UseOntologyView';
-import { OntologyDetailsView } from './views/OntologyDetailsView';
-// import { EditOntologyView } from './views/EditOntologyView';
-import { NewOntologyView } from './views/NewOntologyView';
-import { DashboardView } from './views/DashboardView';
-import { LoginView } from './views/LoginView';
-import { MessagesView } from './views/MessagesView';
+const UseOntologyView = React.lazy(() => import('./views/UseOntologyView').then(m => ({ default: m.UseOntologyView })));
+const OntologyDetailsView = React.lazy(() => import('./views/OntologyDetailsView').then(m => ({ default: m.OntologyDetailsView })));
+const NewOntologyView = React.lazy(() => import('./views/NewOntologyView').then(m => ({ default: m.NewOntologyView })));
+const DashboardView = React.lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })));
+const LoginView = React.lazy(() => import('./views/LoginView').then(m => ({ default: m.LoginView })));
+const MessagesView = React.lazy(() => import('./views/MessagesView').then(m => ({ default: m.MessagesView })));
 import { UserProfileSettings } from './components/UserProfileSettings';
 import { authService } from './services/authService';
 import { userService } from './services/userService';
@@ -107,14 +106,24 @@ function App() {
   useEffect(() => {
     if (!currentUser) return;
     const fetchUnread = async () => {
+      if (document.visibilityState === 'hidden') return;
       const result = await activityService.getUnreadCount();
       if (result.success && result.data) {
         setUnreadMessageCount(result.data.count);
       }
     };
     fetchUnread();
-    const interval = setInterval(fetchUnread, 60000); // Poll every minute
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchUnread, 60000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchUnread();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [currentUser]);
 
   // Handle hash-based URLs for opening views in new tabs
@@ -379,6 +388,12 @@ function App() {
 
       {/* Main Content */}
       <main className="min-h-screen">
+        <Suspense fallback={
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-2 text-sm text-gray-500">Loading...</span>
+          </div>
+        }>
         {currentView === 'dashboard' && (
           <DashboardView onNavigate={handleViewChange} />
         )}
@@ -400,6 +415,7 @@ function App() {
         {currentView === 'messages' && (
           <MessagesView onNavigate={handleViewChange} />
         )}
+        </Suspense>
       </main>
 
       {/* User Profile Settings Modal */}

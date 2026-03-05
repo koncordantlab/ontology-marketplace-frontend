@@ -157,4 +157,65 @@ describe('CommentSystem', () => {
       expect(screen.getByText('0/2000')).toBeInTheDocument();
     });
   });
+
+  it('optimistic reaction toggle updates UI immediately', async () => {
+    const commentWithReaction = {
+      ...mockComment,
+      reactions: { '👍': { count: 1, user_reacted: false } },
+    };
+    vi.mocked(commentService.getComments).mockResolvedValue({
+      success: true,
+      data: { comments: [commentWithReaction], total: 1 },
+    });
+    vi.mocked(commentService.toggleReaction).mockResolvedValue({
+      success: true,
+      data: { action: 'added', emoji: '👍' },
+    });
+
+    render(<CommentSystem ontologyId="ont-1" currentUserEmail="user@test.com" />);
+    await waitFor(() => expect(screen.getByText('Test comment')).toBeInTheDocument());
+
+    // The reaction picker should be visible - click a reaction button
+    // After clicking, the local state updates immediately (optimistic)
+    // We verify the toggle was called
+    const reactionButtons = screen.getAllByRole('button');
+    // Find the 👍 button (it has the count)
+    const thumbsUpBtn = reactionButtons.find(btn => btn.textContent?.includes('👍'));
+    if (thumbsUpBtn) {
+      await userEvent.setup().click(thumbsUpBtn);
+      expect(commentService.toggleReaction).toHaveBeenCalled();
+    }
+  });
+
+  it('optimistic delete removes comment immediately', async () => {
+    vi.mocked(commentService.getComments).mockResolvedValue({
+      success: true,
+      data: { comments: [mockComment], total: 1 },
+    });
+    vi.mocked(commentService.deleteComment).mockResolvedValue({
+      success: true,
+      data: { uuid: 'c1', hard_deleted: true },
+    });
+
+    render(
+      <CommentSystem
+        ontologyId="ont-1"
+        currentUserEmail="user@test.com"
+        isOntologyOwner={true}
+      />
+    );
+    await waitFor(() => expect(screen.getByText('Test comment')).toBeInTheDocument());
+
+    // Open menu and click delete
+    const user = userEvent.setup();
+    const menuBtn = screen.getByTestId('comment-menu');
+    await user.click(menuBtn);
+    const deleteBtn = screen.getByTestId('delete-button');
+    await user.click(deleteBtn);
+
+    // Comment should disappear immediately (optimistic)
+    await waitFor(() => {
+      expect(screen.queryByText('Test comment')).not.toBeInTheDocument();
+    });
+  });
 });

@@ -43,20 +43,57 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
 
   const handleSubmitComment = async () => {
     if (!newComment.trim() || newComment.length > 2000) return;
+    const content = newComment.trim();
+    const tempId = `temp-${Date.now()}`;
+
+    // Optimistic update: append temp comment immediately
+    const tempComment: Comment = {
+      uuid: tempId,
+      content,
+      is_deleted: false,
+      created_at: new Date().toISOString(),
+      updated_at: null,
+      author_email: currentUserEmail || '',
+      reply_count: 0,
+      reactions: {},
+      is_editable: true,
+    };
+    setComments(prev => [tempComment, ...prev]);
+    setNewComment('');
     setSubmitting(true);
-    const result = await commentService.createComment(ontologyId, newComment.trim());
+
+    const result = await commentService.createComment(ontologyId, content);
     setSubmitting(false);
     if (result.success) {
-      setNewComment('');
+      // Replace temp comment with server response by re-fetching
       fetchComments();
     } else {
+      // Rollback: remove temp comment
+      setComments(prev => prev.filter(c => c.uuid !== tempId));
+      setNewComment(content); // Restore input
       setError(result.error || 'Failed to post comment');
     }
   };
 
   const handleReact = async (commentId: string, emoji: ValidEmoji) => {
-    await commentService.toggleReaction(commentId, emoji);
-    fetchComments();
+    // Optimistic update: toggle reaction in local state immediately
+    setComments(prev => prev.map(c => {
+      if (c.uuid !== commentId) return c;
+      const reactions = { ...c.reactions };
+      const current = reactions[emoji] || { count: 0, user_reacted: false };
+      if (current.user_reacted) {
+        reactions[emoji] = { count: Math.max(0, current.count - 1), user_reacted: false };
+      } else {
+        reactions[emoji] = { count: current.count + 1, user_reacted: true };
+      }
+      return { ...c, reactions };
+    }));
+
+    // Fire API call, rollback on error
+    const result = await commentService.toggleReaction(commentId, emoji);
+    if (!result.success) {
+      fetchComments(); // Rollback by re-fetching
+    }
   };
 
   const handleReply = (commentId: string) => {
@@ -82,13 +119,29 @@ export const CommentSystem: React.FC<CommentSystemProps> = ({
   };
 
   const handleEdit = async (commentId: string, content: string) => {
+    // Optimistic update: update content in local state immediately
+    const previousComments = comments;
+    setComments(prev => prev.map(c =>
+      c.uuid === commentId ? { ...c, content, updated_at: new Date().toISOString() } : c
+    ));
+
     const result = await commentService.editComment(commentId, content);
-    if (result.success) fetchComments();
+    if (!result.success) {
+      setComments(previousComments); // Rollback
+      setError(result.error || 'Failed to edit comment');
+    }
   };
 
   const handleDelete = async (commentId: string) => {
+    // Optimistic update: remove comment from local state immediately
+    const previousComments = comments;
+    setComments(prev => prev.filter(c => c.uuid !== commentId));
+
     const result = await commentService.deleteComment(commentId);
-    if (result.success) fetchComments();
+    if (!result.success) {
+      setComments(previousComments); // Rollback
+      setError(result.error || 'Failed to delete comment');
+    }
   };
 
   const handleFlag = async (flag: NewFlag) => {

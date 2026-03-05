@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, Eye, EyeOff, FileText, Tag } from 'lucide-react';
 import { ontologyService, Ontology } from '../services/ontologyService';
 import { authService } from '../services/authService';
@@ -104,7 +104,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   // Tags now provided by backend per ontology; no local heuristics.
 
   // Generate categories dynamically
-  const categories: Category[] = [
+  const categories: Category[] = useMemo(() => [
     {
       name: 'All Ontologies',
       count: ontologies.length,
@@ -135,7 +135,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
       count: ontologies.filter(onto => !onto.properties?.is_public).length,
       filter: (onto) => !onto.properties?.is_public
     }
-  ];
+  ], [ontologies]);
 
   // Generate tags dynamically
   const generateTags = (): Tag[] => {
@@ -162,7 +162,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     }));
   };
 
-  const tags = generateTags();
+  const tags = useMemo(() => generateTags(), [ontologies]);
 
   const handleTagClick = (tagName: string) => {
     setSelectedTags(prev => 
@@ -353,6 +353,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                         <img
                           src={(ontology.properties?.image_url && ontology.properties.image_url.trim()) ? ontology.properties.image_url : defaultImageUrl}
                           alt={`${ontology.name} thumbnail`}
+                          loading="lazy"
+                          width={400}
+                          height={224}
                           className="max-h-full max-w-full object-contain rounded-t-lg"
                           onError={(e) => {
                             const img = e.currentTarget as HTMLImageElement;

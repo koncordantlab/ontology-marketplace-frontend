@@ -22,7 +22,7 @@ const typeColors = {
   message: 'bg-purple-100 text-purple-800',
 };
 
-export const ActivityItem: React.FC<ActivityItemProps> = ({ item, onClick, onMarkRead }) => {
+export const ActivityItem: React.FC<ActivityItemProps> = React.memo(({ item, onClick, onMarkRead }) => {
   const Icon = typeIcons[item.type] || MessageSquare;
 
   const handleClick = () => {
@@ -68,4 +68,4 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({ item, onClick, onMar
       </div>
     </button>
   );
-};
+});

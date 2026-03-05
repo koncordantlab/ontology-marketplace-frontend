@@ -439,43 +439,82 @@ class OntologyService {
   }
 
   /**
-   * Get a single ontology by ID
+   * Normalize a single ontology object from the API response.
+   */
+  private normalizeOntology(ontology: any): Ontology {
+    const getValue = (obj: any, ...paths: string[]): any => {
+      for (const path of paths) {
+        const keys = path.split('.');
+        let value = obj;
+        for (const key of keys) {
+          if (value === null || value === undefined) break;
+          value = value[key];
+        }
+        if (value !== null && value !== undefined) return value;
+      }
+      return null;
+    };
+
+    const parseDate = (dateValue: any): Date => {
+      if (!dateValue) return new Date();
+      if (dateValue && typeof dateValue === 'object' && dateValue._seconds) {
+        return new Date(dateValue._seconds * 1000);
+      }
+      if (dateValue instanceof Date) return dateValue;
+      try { return new Date(dateValue); } catch { return new Date(); }
+    };
+
+    const id = getValue(ontology, 'id', 'uuid', '_id') || '';
+    const name = getValue(ontology, 'name', 'title') || 'Untitled Ontology';
+    const description = getValue(ontology, 'description', 'desc', 'summary') || '';
+    const sourceUrl = getValue(ontology, 'source_url', 'sourceUrl', 'file_url', 'fileUrl', 'url', 'properties.source_url') || '';
+    const imageUrl = getValue(ontology, 'image_url', 'imageUrl', 'thumbnail', 'thumbnail_url', 'properties.image_url') || '';
+    const isPublic = getValue(ontology, 'is_public', 'isPublic', 'public', 'properties.is_public') ?? false;
+    const ownerId = getValue(ontology, 'ownerId', 'owner_id', 'uid', 'userId') || '';
+    const createdAt = parseDate(getValue(ontology, 'createdAt', 'created_at', 'created', 'dateCreated'));
+    const updatedAt = parseDate(getValue(ontology, 'updatedAt', 'updated_at', 'modified', 'dateModified')) || createdAt;
+
+    return {
+      id,
+      name,
+      description,
+      properties: { source_url: sourceUrl, image_url: imageUrl, is_public: isPublic },
+      ownerId,
+      createdAt,
+      updatedAt,
+      node_count: getValue(ontology, 'node_count', 'nodeCount'),
+      relationship_count: getValue(ontology, 'relationship_count', 'relationshipCount'),
+      file_url: getValue(ontology, 'file_url', 'fileUrl'),
+      uid: getValue(ontology, 'uid'),
+      score: getValue(ontology, 'score'),
+      uuid: getValue(ontology, 'uuid'),
+      tags: getValue(ontology, 'tags', 'properties.tags') || [],
+    };
+  }
+
+  /**
+   * Get a single ontology by ID using the dedicated endpoint
    */
   async getOntology(ontologyId: string): Promise<{ success: boolean; data?: Ontology; error?: string }> {
     try {
-      console.log('getOntology called with ID:', ontologyId);
-      
-      // Use the existing searchOntologies method which has proper data normalization
-      const result = await this.searchOntologies();
-      console.log('searchOntologies result:', result);
-      
-      if (result.success && result.data) {
-        console.log('Available ontology IDs:', result.data.map(o => o.id));
-        console.log('Available ontology names:', result.data.map(o => o.name));
-        
-        // Try exact match first
-        let ontology = result.data.find((o: Ontology) => o.id === ontologyId);
-        
-        // If not found, try to find by name (in case ID format is different)
-        if (!ontology) {
-          console.log('Exact ID match not found, trying to find by name...');
-          // This is a fallback - in a real scenario, we'd want to fix the ID matching
-          ontology = result.data[0]; // For now, return the first ontology as a test
-        }
-        
-        console.log('Found ontology:', ontology);
-        
-        if (ontology) {
-          return { success: true, data: ontology };
-        } else {
-          return { success: false, error: `Ontology not found. Available IDs: ${result.data.map(o => o.id).join(', ')}` };
-        }
-      } else {
-        return { success: false, error: result.error || 'Failed to fetch ontology' };
+      const data = await BackendApiClient.getOntologyById(ontologyId);
+      const raw: any = data;
+
+      if (raw?.success === false) {
+        return { success: false, error: raw.message || 'Ontology not found' };
       }
+
+      // The backend returns { success, message, data: { uuid, name, ... } }
+      const ontologyData = raw?.data || raw;
+      if (!ontologyData) {
+        return { success: false, error: 'Ontology not found' };
+      }
+
+      const normalized = this.normalizeOntology(ontologyData);
+      return { success: true, data: normalized };
     } catch (error) {
       console.error('Error getting ontology:', error);
-      return { success: false, error: 'Failed to fetch ontology' };
+      return { success: false, error: this.getUserFriendlyError(error) };
     }
   }
 

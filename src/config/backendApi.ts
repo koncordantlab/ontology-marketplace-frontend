@@ -14,7 +14,7 @@ export const BACKEND_API = {
   // Ontology endpoints (matching Zuplo API Gateway)
   ONTOLOGIES: {
     LIST: '/search_ontologies',
-    GET_BY_ID: (_id: string) => `/api/ontologies/${_id}`,
+    GET_BY_ID: (_id: string) => `/ontologies/${_id}`,
     CREATE: '/add_ontologies',
     UPDATE: (_id: string) => `/update_ontology/${_id}`,
     DELETE: (_id: string) => `/delete_ontologies`,

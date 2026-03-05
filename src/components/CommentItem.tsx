@@ -15,7 +15,7 @@ interface CommentItemProps {
   isOntologyOwner?: boolean;
 }
 
-export const CommentItem: React.FC<CommentItemProps> = ({
+export const CommentItem: React.FC<CommentItemProps> = React.memo(({
   comment,
   onReact,
   onReply,
@@ -147,4 +147,4 @@ export const CommentItem: React.FC<CommentItemProps> = ({
       </div>
     </div>
   );
-};
+});
