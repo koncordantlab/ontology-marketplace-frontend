@@ -19,6 +19,8 @@ interface Tag {
   color: string;
 }
 
+const ITEMS_PER_PAGE = 6;
+
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const defaultImageUrl = (import.meta.env as any).VITE_DEFAULT_ONTOLOGY_IMAGE_URL || (import.meta.env as any).DEFAULT_ONTOLOGY_IMAGE_URL || '';
   const [ontologies, setOntologies] = useState<Ontology[]>([]);
@@ -29,6 +31,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Load user data
   useEffect(() => {
@@ -80,6 +83,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     }
 
     setFilteredOntologies(filtered);
+    setCurrentPage(1);
   }, [ontologies, searchQuery, selectedCategory, selectedTags]);
 
   const loadOntologies = async () => {
@@ -333,18 +337,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                 </button>
               </div>
             ) : filteredOntologies.length > 0 ? (
+              <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredOntologies.map((ontology) => {
+                {filteredOntologies.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((ontology) => {
                   const ontologyUuid = (ontology as any).uuid || ontology.id;
                   if (!ontologyUuid) return null; // Skip if no UUID/ID
 
                   return (
                   <div
                     key={ontology.id}
-                    onClick={() => {
-                      const url = `#ontology-details?id=${ontologyUuid}`;
-                      window.open(url, '_blank');
-                    }}
+                    onClick={() => onNavigate('ontology-details', ontologyUuid)}
                     className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer"
                   >
                     {/* Thumbnail */}
@@ -426,22 +428,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              const url = `#ontology-details?id=${ontologyUuid}`;
-                              window.open(url, '_blank');
+                              onNavigate('ontology-details', ontologyUuid);
                             }}
                             className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                           >
                             View
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const url = `#edit-ontology?id=${ontology.id}`;
-                              window.open(url, '_blank');
-                            }}
-                            className="text-sm text-green-600 hover:text-green-800 font-medium"
-                          >
-                            Edit
                           </button>
                         </div>
                       </div>
@@ -449,6 +440,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                   </div>
                 )})}
               </div>
+
+              {/* Pagination Controls */}
+              {Math.ceil(filteredOntologies.length / ITEMS_PER_PAGE) > 1 && (
+                <div className="flex items-center justify-between mt-8">
+                  <p className="text-sm text-gray-600">
+                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredOntologies.length)} of {filteredOntologies.length}
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: Math.ceil(filteredOntologies.length / ITEMS_PER_PAGE) }, (_, i) => i + 1).map(page => (
+                      <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-200 ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white'
+                            : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredOntologies.length / ITEMS_PER_PAGE), p + 1))}
+                      disabled={currentPage === Math.ceil(filteredOntologies.length / ITEMS_PER_PAGE)}
+                      className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+              </>
             ) : (
               <div className="text-center py-12">
                 <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense } from 'react';
-import { User, Menu, X, MessageSquare } from 'lucide-react';
+import { User, Menu, X, MessageSquare, Upload } from 'lucide-react';
 const UseOntologyView = React.lazy(() => import('./views/UseOntologyView').then(m => ({ default: m.UseOntologyView })));
 const OntologyDetailsView = React.lazy(() => import('./views/OntologyDetailsView').then(m => ({ default: m.OntologyDetailsView })));
 const NewOntologyView = React.lazy(() => import('./views/NewOntologyView').then(m => ({ default: m.NewOntologyView })));
@@ -145,12 +145,13 @@ function App() {
       }
 
       // Set the view based on hash
-      if (view && ['ontology-details', 'edit-ontology', 'dashboard'].includes(view)) {
+      const knownViews = ['ontology-details', 'edit-ontology', 'dashboard', 'use-ontology', 'new-ontology', 'messages'];
+      if (view && knownViews.includes(view)) {
         setCurrentView(view as ViewType);
       }
     };
 
-    const handleHashChange = () => {
+    const handleNavigation = () => {
       const hash = window.location.hash;
       processHash(hash);
     };
@@ -160,9 +161,13 @@ function App() {
     processHash(hashToProcess);
     setPendingHash(null); // Clear pending hash after processing
 
-    // Listen for hash changes
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    // Listen for hash changes and browser back/forward
+    window.addEventListener('hashchange', handleNavigation);
+    window.addEventListener('popstate', handleNavigation);
+    return () => {
+      window.removeEventListener('hashchange', handleNavigation);
+      window.removeEventListener('popstate', handleNavigation);
+    };
   }, [currentUser, isLoading, pendingHash]);
 
   // Handle Firebase permission errors by defaulting to demo mode
@@ -210,6 +215,13 @@ function App() {
       setSelectedOntologyId(ontologyId);
     }
     setMobileMenuOpen(false);
+
+    // Update URL hash so browser back/forward navigation works
+    if (ontologyId) {
+      window.history.pushState(null, '', `#${view}?id=${ontologyId}`);
+    } else {
+      window.history.pushState(null, '', `#${view}`);
+    }
   };
 
   const handleLogin = (user: User) => {
@@ -293,13 +305,7 @@ function App() {
               {navigationItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    if (item.id === 'dashboard') {
-                      window.open('#dashboard', 'dashboard');
-                      return;
-                    }
-                    handleViewChange(item.id as ViewType);
-                  }}
+                  onClick={() => handleViewChange(item.id as ViewType)}
                   className={`text-sm font-medium transition-colors duration-200 ${
                     currentView === item.id 
                       ? 'text-blue-600 border-b-2 border-blue-500 pb-1' 
@@ -318,6 +324,16 @@ function App() {
           </div>
           
           <div className="flex items-center space-x-4">
+            {/* Upload button */}
+            <button
+              onClick={() => handleViewChange('use-ontology')}
+              className="flex items-center space-x-1.5 bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
+              title="Upload to Database"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Upload</span>
+            </button>
+
             {/* Messages button */}
             <button
               onClick={() => handleViewChange('messages')}
@@ -363,14 +379,7 @@ function App() {
               {navigationItems.map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    if (item.id === 'dashboard') {
-                      window.open('#dashboard', 'dashboard');
-                      setMobileMenuOpen(false);
-                      return;
-                    }
-                    handleViewChange(item.id as ViewType);
-                  }}
+                  onClick={() => handleViewChange(item.id as ViewType)}
                   className={`text-left px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                     currentView === item.id 
                       ? 'text-blue-600 bg-blue-50' 
@@ -398,7 +407,7 @@ function App() {
           <DashboardView onNavigate={handleViewChange} />
         )}
         {currentView === 'use-ontology' && (
-          <UseOntologyView onNavigate={handleViewChange} />
+          <UseOntologyView onNavigate={handleViewChange} initialOntologyId={selectedOntologyId} />
         )}
         {currentView === 'ontology-details' && (
           <OntologyDetailsView 

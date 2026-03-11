@@ -32,6 +32,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [selectedImagePreviewUrl, setSelectedImagePreviewUrl] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Dialog state
@@ -300,6 +301,7 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
       // Clear selected image state after successful save
       clearSelectedImage();
       setSaveSuccess(true);
+      setIsEditing(false);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (e) {
       console.error('Save failed:', e);
@@ -471,9 +473,14 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
   };
 
   const handleEdit = () => {
-    const ontologyUuid = ontology ? ((ontology as any).uuid || ontology.id) : ontologyId;
-    const url = `#edit-ontology?id=${ontologyUuid}`;
-    window.open(url, '_blank');
+    if (isEditing) {
+      // Cancel editing — reset editable back to original
+      setEditable(ontology ? { ...ontology } : null);
+      clearSelectedImage();
+      setSaveSuccess(false);
+      setSaveError(null);
+    }
+    setIsEditing(!isEditing);
   };
 
   const handleLike = () => {
@@ -597,18 +604,36 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Title
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                  {ontology.name}
-                </div>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editable?.name || ''}
+                    onChange={(e) => handleFieldChange('name', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
+                    {ontology.name}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Description
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 min-h-[100px]">
-                  {ontology.description}
-                </div>
+                {isEditing ? (
+                  <textarea
+                    value={editable?.description || ''}
+                    onChange={(e) => handleFieldChange('description', e.target.value)}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900 min-h-[100px]">
+                    {ontology.description}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -637,32 +662,53 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Status
                 </label>
-                <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    ontology.properties?.is_public 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {ontology.properties?.is_public ? 'Public' : 'Private'}
-                  </span>
-                </div>
+                {isEditing ? (
+                  <select
+                    value={editable?.properties?.is_public ? 'public' : 'private'}
+                    onChange={(e) => handlePropChange('is_public', e.target.value === 'public')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                  </select>
+                ) : (
+                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      ontology.properties?.is_public
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {ontology.properties?.is_public ? 'Public' : 'Private'}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {ontology.properties?.source_url && (
+              {(isEditing || ontology.properties?.source_url) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Source URL
                   </label>
-                  <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
-                    <a 
-                      href={ontology.properties.source_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 break-all"
-                    >
-                      {ontology.properties.source_url}
-                    </a>
-                  </div>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editable?.properties?.source_url || ''}
+                      onChange={(e) => handlePropChange('source_url', e.target.value)}
+                      placeholder="https://example.com/ontology.owl"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <div className="px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-sm text-gray-900">
+                      <a
+                        href={ontology.properties!.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 break-all"
+                      >
+                        {ontology.properties!.source_url}
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -709,18 +755,41 @@ export const OntologyDetailsView: React.FC<OntologyDetailsViewProps> = ({
 
               {/* Buttons */}
               <div className="flex gap-3 justify-end pt-4">
-                <button
-                  onClick={handleEdit}
-                  className="px-8 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-                >
-                  EDIT
-                </button>
-                <button
-                  onClick={handleUpload}
-                  className="px-8 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
-                >
-                  UPLOAD TO DATABASE
-                </button>
+                {isEditing ? (
+                  <>
+                    <button
+                      onClick={handleEdit}
+                      disabled={isSaving}
+                      className="px-8 py-3 bg-gray-500 text-white rounded-md font-medium hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50"
+                    >
+                      CANCEL
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className="px-8 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50"
+                    >
+                      {isSaving ? 'SAVING...' : 'SAVE'}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {canEdit && (
+                      <button
+                        onClick={handleEdit}
+                        className="px-8 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
+                      >
+                        EDIT
+                      </button>
+                    )}
+                    <button
+                      onClick={handleUpload}
+                      className="px-8 py-3 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200"
+                    >
+                      UPLOAD TO DATABASE
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             </div>
