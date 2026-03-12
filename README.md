@@ -223,7 +223,8 @@ All API calls go through an API Gateway, the base url is set in the .env file
 - **URL**: `/search_ontologies`
 - **Method**: GET
 - **Auth**: Bearer token required (Firebase ID token)
-- **Returns**: List of user's ontologies and public ontologies
+- **Query params**: `limit` (default 6), `offset` (default 0) for server-side pagination
+- **Returns**: Paginated list of user's ontologies and public ontologies (includes `total` count)
 
 #### Add Ontology
 - **URL**: `/add_ontologies`
@@ -484,9 +485,10 @@ This project is licensed under the MIT License.
 - **User Management**: Full authentication and profile system (Firebase Auth)
 - **Ontology Operations**: Create, read, update, delete
 - **Search & Filter**: Advanced filtering and search capabilities
+- **Server-Side Pagination**: Dashboard fetches pages via `limit`/`offset` query params
 - **Image Upload**: Cloudinary integration for thumbnails
 - **Database Upload**: Upload ontologies to external databases
 - **Community**: Comments, replies, reactions, flagging, activity feed, admin messaging
-- **Testing**: 83 tests across 14 test files with coverage tracking
+- **Testing**: 95 tests across 16 test files with coverage tracking
 
 **Ready to use**: Clone, configure environment variables, and run `npm run dev`!

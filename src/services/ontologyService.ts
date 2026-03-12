@@ -27,6 +27,7 @@ export interface Ontology {
 export interface OntologyResponse {
   success: boolean;
   data?: Ontology[];
+  total?: number;
   error?: string;
 }
 
@@ -106,11 +107,12 @@ class OntologyService {
   }
 
   /**
-   * Search for ontologies - returns all ontologies a user creates or public ontologies
+   * Search for ontologies - returns a page of ontologies a user creates or public ontologies
    */
-  async searchOntologies(): Promise<OntologyResponse> {
+  async searchOntologies(options: { limit?: number; offset?: number } = {}): Promise<OntologyResponse> {
     try {
-      const data = await BackendApiClient.getOntologies();
+      const { limit = 6, offset = 0 } = options;
+      const data = await BackendApiClient.getOntologies(limit, offset);
       
       // Handle different response structures
       let ontologiesArray: any[];
@@ -164,6 +166,11 @@ class OntologyService {
           return new Date();
         }
       };
+
+      // Extract total from response, fallback to array length
+      const total = (data && data.data && typeof data.data.total === 'number')
+        ? data.data.total
+        : ontologiesArray.length;
 
       const normalizedOntologies = ontologiesArray.map((ontology: any) => {
         // Get values with fallbacks for all possible field name variations
@@ -245,16 +252,18 @@ class OntologyService {
       });
       return {
         success: true,
-        data: normalizedOntologies
+        data: normalizedOntologies,
+        total,
       };
     } catch (error) {
       console.error('Error searching ontologies:', error);
-      
+
       // Return proper error instead of fallback data
       return {
         success: false,
         error: this.getUserFriendlyError(error),
-        data: []
+        data: [],
+        total: 0,
       };
     }
   }
@@ -358,8 +367,8 @@ class OntologyService {
   /**
    * Get ontologies with loading state management
    */
-  async getOntologies(): Promise<{ ontologies: Ontology[]; error?: string }> {
-    const result = await this.searchOntologies();
+  async getOntologies(options: { limit?: number; offset?: number } = {}): Promise<{ ontologies: Ontology[]; total?: number; error?: string }> {
+    const result = await this.searchOntologies(options);
     
     if (!result.success) {
       return {

@@ -32,6 +32,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [user, setUser] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalOntologies, setTotalOntologies] = useState(0);
 
   // Load user data
   useEffect(() => {
@@ -86,14 +87,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
     setCurrentPage(1);
   }, [ontologies, searchQuery, selectedCategory, selectedTags]);
 
-  const loadOntologies = async () => {
+  const loadOntologies = async (page = 1) => {
     setIsLoading(true);
     setError('');
-    
+
     try {
-      const result = await ontologyService.searchOntologies();
+      const offset = (page - 1) * ITEMS_PER_PAGE;
+      const result = await ontologyService.searchOntologies({ limit: ITEMS_PER_PAGE, offset });
       if (result.success && result.data) {
         setOntologies(result.data);
+        setTotalOntologies(result.total ?? result.data.length);
+        setCurrentPage(page);
       } else {
         setError(result.error || 'Failed to load ontologies');
       }
@@ -339,7 +343,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             ) : filteredOntologies.length > 0 ? (
               <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredOntologies.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map((ontology) => {
+                {filteredOntologies.map((ontology) => {
                   const ontologyUuid = (ontology as any).uuid || ontology.id;
                   if (!ontologyUuid) return null; // Skip if no UUID/ID
 
@@ -442,23 +446,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
               </div>
 
               {/* Pagination Controls */}
-              {Math.ceil(filteredOntologies.length / ITEMS_PER_PAGE) > 1 && (
+              {Math.ceil(totalOntologies / ITEMS_PER_PAGE) > 1 && (
                 <div className="flex items-center justify-between mt-8">
                   <p className="text-sm text-gray-600">
-                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredOntologies.length)} of {filteredOntologies.length}
+                    Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, totalOntologies)} of {totalOntologies}
                   </p>
                   <div className="flex items-center space-x-2">
                     <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      onClick={() => loadOntologies(currentPage - 1)}
                       disabled={currentPage === 1}
                       className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                     >
                       Previous
                     </button>
-                    {Array.from({ length: Math.ceil(filteredOntologies.length / ITEMS_PER_PAGE) }, (_, i) => i + 1).map(page => (
+                    {Array.from({ length: Math.ceil(totalOntologies / ITEMS_PER_PAGE) }, (_, i) => i + 1).map(page => (
                       <button
                         key={page}
-                        onClick={() => setCurrentPage(page)}
+                        onClick={() => loadOntologies(page)}
                         className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors duration-200 ${
                           currentPage === page
                             ? 'bg-blue-600 text-white'
@@ -469,8 +473,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                       </button>
                     ))}
                     <button
-                      onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredOntologies.length / ITEMS_PER_PAGE), p + 1))}
-                      disabled={currentPage === Math.ceil(filteredOntologies.length / ITEMS_PER_PAGE)}
+                      onClick={() => loadOntologies(currentPage + 1)}
+                      disabled={currentPage === Math.ceil(totalOntologies / ITEMS_PER_PAGE)}
                       className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                     >
                       Next

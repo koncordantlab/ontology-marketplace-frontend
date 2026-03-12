@@ -182,11 +182,12 @@ export class BackendApiClient {
   }
 
   /**
-   * Get list of ontologies (search ontologies)
+   * Get list of ontologies (search ontologies) with pagination
    */
-  static async getOntologies() {
+  static async getOntologies(limit = 6, offset = 0) {
     return this.request(BACKEND_API.ONTOLOGIES.LIST, {
       method: 'GET',
+      params: { limit: String(limit), offset: String(offset) },
     });
   }
 
@@ -232,12 +233,13 @@ export class BackendApiClient {
   }
 
   /**
-   * Search ontologies
+   * Search ontologies with pagination
    */
-  static async searchOntologies(query: string) {
+  static async searchOntologies(query: string, limit = 6, offset = 0) {
     return this.request(BACKEND_API.ONTOLOGIES.SEARCH, {
       method: 'POST',
       body: { query },
+      params: { limit: String(limit), offset: String(offset) },
     });
   }
 
