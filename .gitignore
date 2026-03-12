@@ -119,3 +119,7 @@ coverage/
 # Coverage history
 .coverage_history/
 coverage/
+
+# Playwright
+playwright-report/
+e2e-dist/

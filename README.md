@@ -363,6 +363,38 @@ npm run test:watch   # Run tests in watch mode
 ./tests.sh           # Run tests with coverage and delta tracking
 ```
 
+### E2E Testing
+
+End-to-end tests use [Playwright](https://playwright.dev/) with network-level mocking (no real backend or Firebase needed).
+
+**Run via script (recommended):**
+```bash
+./.e2etests.sh
+```
+This auto-installs dependencies, builds the app with mock env vars, and runs all e2e tests.
+
+**Run manually:**
+```bash
+npm run build && npx playwright test
+```
+
+**Headed mode (see the browser):**
+```bash
+./.e2etests.sh --headed
+# or
+npm run e2e:headed
+```
+
+**UI mode (interactive):**
+```bash
+npm run e2e:ui
+```
+
+**View HTML report:**
+```bash
+npx playwright show-report
+```
+
 ### Development Workflow
 1. **Start Dev Server**: Run `npm run dev` to start Vite dev server on http://localhost:5173
 2. **Hot Reload**: Vite automatically reloads when you make changes to source files
