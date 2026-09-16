@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Plus, Eye, EyeOff, FileText, Tag, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ontologyService, Ontology } from '../services/ontologyService';
@@ -42,15 +42,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const [restoreTarget, setRestoreTarget] = useState<{ id: string; name: string } | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
 
+  // Guards against the two mount-time fetches (see below) racing and an
+  // out-of-order/older response clobbering a newer one's state.
+  const requestIdRef = useRef(0);
+
   // Load user data
   useEffect(() => {
     const currentUser = authService.getCurrentUser();
     setUser(currentUser);
   }, []);
 
-  // Refresh ontologies when auth state changes (e.g., after login)
+  // Refresh ontologies when auth state actually changes (e.g., login/logout).
+  // onAuthStateChange fires immediately on subscribe with the current user too;
+  // that initial call is redundant with the selectedCategory mount-effect below,
+  // so it's skipped here to avoid firing two concurrent identical fetches.
   useEffect(() => {
+    let isInitialCallback = true;
     const unsubscribe = authService.onAuthStateChange((u) => {
+      if (isInitialCallback) {
+        isInitialCallback = false;
+        setUser(u);
+        return;
+      }
       setUser(u);
       // Re-load ontologies so private ones appear after login
       loadOntologies();
@@ -120,6 +133,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   };
 
   const loadOntologies = async (page = 1, term: string = submittedSearchTerm, category: string = selectedCategory) => {
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setError('');
 
@@ -132,6 +146,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         searchTerm: term || undefined,
         ...filters,
       });
+      // A newer loadOntologies call has since started; its result should win, not this one.
+      if (requestId !== requestIdRef.current) return;
       if (result.success && result.data) {
         setOntologies(result.data);
         setTotalOntologies(result.total ?? result.data.length);
@@ -140,10 +156,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         setError(result.error || 'Failed to load ontologies');
       }
     } catch (error) {
+      if (requestId !== requestIdRef.current) return;
       console.error('Error loading ontologies:', error);
       setError('Failed to load ontologies');
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
