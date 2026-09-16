@@ -6,13 +6,16 @@ const NewOntologyView = React.lazy(() => import('./views/NewOntologyView').then(
 const DashboardView = React.lazy(() => import('./views/DashboardView').then(m => ({ default: m.DashboardView })));
 const LoginView = React.lazy(() => import('./views/LoginView').then(m => ({ default: m.LoginView })));
 const MessagesView = React.lazy(() => import('./views/MessagesView').then(m => ({ default: m.MessagesView })));
+const RecommendView = React.lazy(() => import('./views/RecommendView').then(m => ({ default: m.RecommendView })));
+const RecommendDetailView = React.lazy(() => import('./views/RecommendDetailView').then(m => ({ default: m.RecommendDetailView })));
+const RecommendSimilarView = React.lazy(() => import('./views/RecommendSimilarView').then(m => ({ default: m.RecommendSimilarView })));
 import { UserProfileSettings } from './components/UserProfileSettings';
 import { authService } from './services/authService';
 import { userService } from './services/userService';
 import { activityService } from './services/activityService';
 import toast, { Toaster } from 'react-hot-toast';
 
-type ViewType = 'login' | 'dashboard' | 'use-ontology' | 'ontology-details' | 'edit-ontology' | 'new-ontology' | 'messages';
+type ViewType = 'login' | 'dashboard' | 'recommend' | 'recommend-detail' | 'recommend-similar' | 'use-ontology' | 'ontology-details' | 'edit-ontology' | 'new-ontology' | 'messages';
 
 interface User {
   id: string;
@@ -49,7 +52,7 @@ function App() {
     // Format: #dashboard or single view name
     if (parts.length === 1) {
       const part = parts[0];
-      if (part === 'dashboard' || part === 'new-ontology') {
+      if (part === 'dashboard' || part === 'recommend' || part === 'new-ontology') {
         return { view: part as ViewType, id: null };
       }
       if (part === 'ontology-details' || part === 'edit-ontology') {
@@ -145,7 +148,7 @@ function App() {
       }
 
       // Set the view based on hash
-      const knownViews = ['ontology-details', 'edit-ontology', 'dashboard', 'use-ontology', 'new-ontology', 'messages'];
+      const knownViews = ['ontology-details', 'edit-ontology', 'dashboard', 'recommend', 'recommend-detail', 'recommend-similar', 'use-ontology', 'new-ontology', 'messages'];
       if (view && knownViews.includes(view)) {
         setCurrentView(view as ViewType);
       }
@@ -190,6 +193,12 @@ function App() {
     switch (currentView) {
       case 'dashboard':
         return 'Dashboard';
+      case 'recommend':
+        return 'Recommend';
+      case 'recommend-detail':
+        return 'Ontology Detail';
+      case 'recommend-similar':
+        return 'Similar Ontologies';
       case 'use-ontology':
         return 'Use Ontology';
       case 'ontology-details':
@@ -207,6 +216,7 @@ function App() {
 
   const navigationItems = [
     { id: 'dashboard' as ViewType, label: 'Dashboard' },
+    { id: 'recommend' as ViewType, label: 'Recommend' },
   ];
 
   const handleViewChange = (view: string, ontologyId?: string) => {
@@ -405,6 +415,15 @@ function App() {
         }>
         {currentView === 'dashboard' && (
           <DashboardView onNavigate={handleViewChange} />
+        )}
+        {currentView === 'recommend' && (
+          <RecommendView onNavigate={handleViewChange} />
+        )}
+        {currentView === 'recommend-detail' && (
+          <RecommendDetailView acronym={selectedOntologyId} onNavigate={handleViewChange} />
+        )}
+        {currentView === 'recommend-similar' && (
+          <RecommendSimilarView acronym={selectedOntologyId} onNavigate={handleViewChange} />
         )}
         {currentView === 'use-ontology' && (
           <UseOntologyView onNavigate={handleViewChange} initialOntologyId={selectedOntologyId} />

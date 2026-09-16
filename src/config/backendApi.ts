@@ -35,6 +35,13 @@ export const BACKEND_API = {
   TAGS: {
     LIST: '/get_tags',
   },
+
+  // OMRank recommendation endpoint
+  RECOMMEND: {
+    SEARCH: '/recommend',
+    DETAIL: (_acronym: string) => `/recommend/detail/${_acronym}`,
+    SIMILAR: (_acronym: string) => `/recommend/similar/${_acronym}`,
+  },
   
   // User endpoints
   USER: {
@@ -375,5 +382,140 @@ export class BackendApiClient {
   static async getTags(): Promise<string[]> {
     return this.request(BACKEND_API.TAGS.LIST, { method: 'GET' });
   }
+
+  /**
+   * OMRank keyword/semantic ontology recommendation for a query string.
+   */
+  static async recommend(
+    query: string,
+    mode: 'keyword' | 'semantic' = 'keyword',
+    top = 20,
+  ): Promise<RecommendResponse> {
+    return this.request(BACKEND_API.RECOMMEND.SEARCH, {
+      method: 'GET',
+      params: { q: query, mode, top: String(top) },
+    });
+  }
+
+  /**
+   * Full OMRank detail record for a single ontology, by acronym.
+   */
+  static async recommendDetail(acronym: string): Promise<RecommendDetailResponse> {
+    return this.request(BACKEND_API.RECOMMEND.DETAIL(acronym), { method: 'GET' });
+  }
+
+  /**
+   * Ontologies most similar to the given acronym (embedding + domain-tag overlap).
+   */
+  static async recommendSimilar(acronym: string, top = 20): Promise<RecommendSimilarResponse> {
+    return this.request(BACKEND_API.RECOMMEND.SIMILAR(acronym), {
+      method: 'GET',
+      params: { top: String(top) },
+    });
+  }
+}
+
+/**
+ * OMRank recommendation types
+ */
+export interface RecommendResult {
+  rank: number;
+  acronym: string;
+  name: string;
+  score: number;
+  confidence: number;
+  tier: 'Gold' | 'Silver' | 'Bronze' | 'Candidate' | 'EvidencePending';
+  relevance: number;
+  semantic: number;
+  structural: number;
+  fair: number;
+  interop: number;
+  adoption: number;
+  governance: number;
+  maintenance: number;
+  intl: number;
+  class_count: number;
+  data_source: 'owl+metadata' | 'metadata_only' | 'no_file';
+  source_label: string;
+}
+
+export interface RecommendResponse {
+  success: boolean;
+  message: string;
+  data: {
+    results: RecommendResult[];
+    query: string;
+    mode: 'keyword' | 'semantic';
+    semantic_available: boolean;
+  } | null;
+}
+
+export interface RecommendDimension {
+  name: string;
+  key: string;
+  score: number | null;
+  conf: number | null;
+  weight: number;
+  desc: string;
+}
+
+export interface RecommendDetail {
+  acronym: string;
+  name: string;
+  description: string;
+  homepage: string | null;
+  uri: string | null;
+  tags: string[];
+  release_date: string;
+  version_iri: string | null;
+  owl_format: string | null;
+  download_url: string | null;
+  download_status: string | null;
+  parse_status: string | null;
+  class_count: number;
+  property_count: number;
+  individual_count: number;
+  axiom_count: number;
+  max_depth: number;
+  avg_depth: number;
+  has_label_count: number;
+  has_definition_count: number;
+  has_synonym_count: number;
+  owl_profile: string | null;
+  language_tags: string[];
+  external_ns_count: number;
+  import_count: number;
+  omrank_score: number | null;
+  confidence: number | null;
+  tier: 'Gold' | 'Silver' | 'Bronze' | 'Candidate' | 'EvidencePending';
+  data_source: 'owl+metadata' | 'metadata_only' | 'no_file';
+  source_label: string;
+  dims: RecommendDimension[];
+}
+
+export interface RecommendDetailResponse {
+  success: boolean;
+  message: string;
+  data: RecommendDetail | null;
+}
+
+export interface RecommendSimilarResult {
+  acronym: string;
+  name: string;
+  description: string;
+  data_source: 'owl+metadata' | 'metadata_only' | 'no_file';
+  source_label: string;
+  omrank_score: number | null;
+  tier: 'Gold' | 'Silver' | 'Bronze' | 'Candidate' | 'EvidencePending' | null;
+  similarity: number;
+}
+
+export interface RecommendSimilarResponse {
+  success: boolean;
+  message: string;
+  data: {
+    acronym: string;
+    results: RecommendSimilarResult[];
+  } | null;
 }
 
