@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, Eye, EyeOff, Tag, X } from 'lucide-react';
+import { Search, Plus, Eye, EyeOff, FileText, Tag, X } from 'lucide-react';
 
 const OntologyGraphPlaceholder: React.FC = () => (
   <svg viewBox="0 0 200 160" className="w-32 h-32 opacity-60" fill="none" xmlns="http://www.w3.org/2000/svg">
