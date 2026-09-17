@@ -416,15 +416,17 @@ function App() {
         {currentView === 'dashboard' && (
           <DashboardView onNavigate={handleViewChange} />
         )}
-        {currentView === 'recommend' && (
-          <RecommendView onNavigate={handleViewChange} />
-        )}
-        {currentView === 'recommend-detail' && (
-          <RecommendDetailView acronym={selectedOntologyId} onNavigate={handleViewChange} />
-        )}
-        {currentView === 'recommend-similar' && (
-          <RecommendSimilarView acronym={selectedOntologyId} onNavigate={handleViewChange} />
-        )}
+        <div style={{ display: ['recommend', 'recommend-detail', 'recommend-similar'].includes(currentView) ? 'block' : 'none' }}>
+          <div style={{ display: currentView === 'recommend' ? 'block' : 'none' }}>
+            <RecommendView onNavigate={handleViewChange} />
+          </div>
+          {currentView === 'recommend-detail' && (
+            <RecommendDetailView acronym={selectedOntologyId} onNavigate={handleViewChange} />
+          )}
+          {currentView === 'recommend-similar' && (
+            <RecommendSimilarView acronym={selectedOntologyId} onNavigate={handleViewChange} />
+          )}
+        </div>
         {currentView === 'use-ontology' && (
           <UseOntologyView onNavigate={handleViewChange} initialOntologyId={selectedOntologyId} />
         )}
