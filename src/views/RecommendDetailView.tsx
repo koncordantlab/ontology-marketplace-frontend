@@ -174,7 +174,7 @@ export const RecommendDetailView: React.FC<RecommendDetailViewProps> = ({ acrony
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors duration-200"
                 >
-                  <Download className="h-3.5 w-3.5" /> Download OWL File
+                  <Download className="h-3.5 w-3.5" /> {r.data_source === 'kg_csv' ? 'Download Entities CSV' : 'Download OWL File'}
                 </a>
               )}
               <a
