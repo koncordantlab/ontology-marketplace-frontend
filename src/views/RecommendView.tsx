@@ -4,6 +4,7 @@ import { BackendApiClient, RecommendResult } from '../config/backendApi';
 
 type Mode = 'keyword' | 'semantic';
 type Platform = 'all' | 'bioportal' | 'proto-okn';
+type Preset = 'default' | 'discovery';
 
 const TIER_STYLES: Record<string, string> = {
   Gold: 'bg-yellow-100 text-yellow-800 border border-yellow-300',
@@ -131,20 +132,21 @@ export const RecommendView: React.FC<RecommendViewProps> = ({ onNavigate }) => {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<Mode>('keyword');
   const [platform, setPlatform] = useState<Platform>('all');
+  const [preset, setPreset] = useState<Preset>('default');
   const [results, setResults] = useState<RecommendResult[]>([]);
   const [searchedQuery, setSearchedQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [semanticAvailable, setSemanticAvailable] = useState(true);
 
-  const runSearch = async (q: string, m: Mode, p: Platform) => {
+  const runSearch = async (q: string, m: Mode, p: Platform, pr: Preset) => {
     const trimmed = q.trim();
     if (!trimmed) return;
 
     setIsLoading(true);
     setError('');
     try {
-      const res = await BackendApiClient.recommend(trimmed, m, 20, p);
+      const res = await BackendApiClient.recommend(trimmed, m, 20, p, pr);
       if (res.success && res.data) {
         setResults(res.data.results);
         setSearchedQuery(trimmed);
@@ -164,17 +166,22 @@ export const RecommendView: React.FC<RecommendViewProps> = ({ onNavigate }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    runSearch(query, mode, platform);
+    runSearch(query, mode, platform, preset);
   };
 
   const handleModeChange = (m: Mode) => {
     setMode(m);
-    if (searchedQuery) runSearch(searchedQuery, m, platform);
+    if (searchedQuery) runSearch(searchedQuery, m, platform, preset);
   };
 
   const handlePlatformChange = (p: Platform) => {
     setPlatform(p);
-    if (searchedQuery) runSearch(searchedQuery, mode, p);
+    if (searchedQuery) runSearch(searchedQuery, mode, p, preset);
+  };
+
+  const handlePresetChange = (pr: Preset) => {
+    setPreset(pr);
+    if (searchedQuery) runSearch(searchedQuery, mode, platform, pr);
   };
 
   return (
@@ -249,6 +256,30 @@ export const RecommendView: React.FC<RecommendViewProps> = ({ onNavigate }) => {
                   {p === 'all' ? 'All' : p === 'bioportal' ? 'BioPortal' : 'Proto-OKN'}
                 </button>
               ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Preset:</span>
+              <button
+                type="button"
+                onClick={() => handlePresetChange('default')}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${
+                  preset === 'default' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Default
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePresetChange('discovery')}
+                title="Boosts relevance score — surfaces niche and knowledge-graph ontologies"
+                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${
+                  preset === 'discovery' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Sparkles className="h-3 w-3" />
+                Discovery
+              </button>
             </div>
           </div>
         </form>
