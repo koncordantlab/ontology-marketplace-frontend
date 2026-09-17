@@ -1,5 +1,25 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, Eye, EyeOff, FileText, Tag, X } from 'lucide-react';
+import { Search, Plus, Eye, EyeOff, Tag, X } from 'lucide-react';
+
+const OntologyGraphPlaceholder: React.FC = () => (
+  <svg viewBox="0 0 200 160" className="w-32 h-32 opacity-60" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="100" cy="75" r="18" fill="#bfdbfe" stroke="#3b82f6" strokeWidth="2.5"/>
+    <circle cx="38" cy="38" r="11" fill="#bfdbfe" stroke="#3b82f6" strokeWidth="2"/>
+    <circle cx="162" cy="38" r="11" fill="#bfdbfe" stroke="#3b82f6" strokeWidth="2"/>
+    <circle cx="30" cy="118" r="11" fill="#bfdbfe" stroke="#3b82f6" strokeWidth="2"/>
+    <circle cx="170" cy="118" r="11" fill="#bfdbfe" stroke="#3b82f6" strokeWidth="2"/>
+    <circle cx="100" cy="140" r="9" fill="#bfdbfe" stroke="#3b82f6" strokeWidth="2"/>
+    <circle cx="62" cy="148" r="7" fill="#dbeafe" stroke="#60a5fa" strokeWidth="1.5"/>
+    <circle cx="138" cy="148" r="7" fill="#dbeafe" stroke="#60a5fa" strokeWidth="1.5"/>
+    <line x1="100" y1="57" x2="46" y2="44" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="100" y1="57" x2="154" y2="44" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="87" y1="86" x2="39" y2="109" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="113" y1="86" x2="161" y2="109" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="100" y1="93" x2="100" y2="131" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round"/>
+    <line x1="95" y1="139" x2="67" y2="143" stroke="#60a5fa" strokeWidth="1.2" strokeLinecap="round"/>
+    <line x1="105" y1="139" x2="133" y2="143" stroke="#60a5fa" strokeWidth="1.2" strokeLinecap="round"/>
+  </svg>
+);
 import toast from 'react-hot-toast';
 import { ontologyService, Ontology } from '../services/ontologyService';
 import { authService } from '../services/authService';
@@ -536,7 +556,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                         />
                       ) : null}
                       <div className="w-full h-full flex items-center justify-center" style={{ display: (((ontology.properties?.image_url && ontology.properties.image_url.trim()) ? ontology.properties.image_url : defaultImageUrl)) ? 'none' : 'flex' }}>
-                        <FileText className="w-12 h-12 text-gray-400" />
+                        <OntologyGraphPlaceholder />
                       </div>
                     </div>
 
