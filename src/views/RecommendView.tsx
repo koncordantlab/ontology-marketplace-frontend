@@ -3,6 +3,7 @@ import { Search, Sparkles, ChevronDown, ChevronUp, Circle, CircleDot, CircleDash
 import { BackendApiClient, RecommendResult } from '../config/backendApi';
 
 type Mode = 'keyword' | 'semantic';
+type Platform = 'all' | 'bioportal' | 'proto-okn';
 
 const TIER_STYLES: Record<string, string> = {
   Gold: 'bg-yellow-100 text-yellow-800 border border-yellow-300',
@@ -62,6 +63,9 @@ const ResultRow: React.FC<{ result: RecommendResult; onOpen: (acronym: string) =
         >
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-gray-900 group-hover:text-blue-600 group-hover:underline">{r.acronym}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${r.acronym.startsWith('OKN-') ? 'bg-teal-100 text-teal-700' : 'bg-blue-100 text-blue-700'}`}>
+              {r.acronym.startsWith('OKN-') ? 'Proto-OKN' : 'BioPortal'}
+            </span>
             <span className="text-sm text-gray-500 truncate">{r.name}</span>
           </div>
           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
@@ -126,20 +130,21 @@ interface RecommendViewProps {
 export const RecommendView: React.FC<RecommendViewProps> = ({ onNavigate }) => {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<Mode>('keyword');
+  const [platform, setPlatform] = useState<Platform>('all');
   const [results, setResults] = useState<RecommendResult[]>([]);
   const [searchedQuery, setSearchedQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [semanticAvailable, setSemanticAvailable] = useState(true);
 
-  const runSearch = async (q: string, m: Mode) => {
+  const runSearch = async (q: string, m: Mode, p: Platform) => {
     const trimmed = q.trim();
     if (!trimmed) return;
 
     setIsLoading(true);
     setError('');
     try {
-      const res = await BackendApiClient.recommend(trimmed, m, 20);
+      const res = await BackendApiClient.recommend(trimmed, m, 20, p);
       if (res.success && res.data) {
         setResults(res.data.results);
         setSearchedQuery(trimmed);
@@ -159,12 +164,17 @@ export const RecommendView: React.FC<RecommendViewProps> = ({ onNavigate }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    runSearch(query, mode);
+    runSearch(query, mode, platform);
   };
 
   const handleModeChange = (m: Mode) => {
     setMode(m);
-    if (searchedQuery) runSearch(searchedQuery, m);
+    if (searchedQuery) runSearch(searchedQuery, m, platform);
+  };
+
+  const handlePlatformChange = (p: Platform) => {
+    setPlatform(p);
+    if (searchedQuery) runSearch(searchedQuery, mode, p);
   };
 
   return (
@@ -198,30 +208,48 @@ export const RecommendView: React.FC<RecommendViewProps> = ({ onNavigate }) => {
             </button>
           </div>
 
-          {/* Mode toggle */}
-          <div className="flex items-center gap-2 mt-3">
-            <span className="text-xs text-gray-500">Mode:</span>
-            <button
-              type="button"
-              onClick={() => handleModeChange('keyword')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${
-                mode === 'keyword' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Keyword
-            </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange('semantic')}
-              disabled={!semanticAvailable}
-              title={!semanticAvailable ? 'Semantic search is unavailable on the server' : undefined}
-              className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
-                mode === 'semantic' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <Sparkles className="h-3 w-3" />
-              Semantic
-            </button>
+          {/* Mode + Platform toggles */}
+          <div className="flex flex-wrap items-center gap-4 mt-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Mode:</span>
+              <button
+                type="button"
+                onClick={() => handleModeChange('keyword')}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${
+                  mode === 'keyword' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                Keyword
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange('semantic')}
+                disabled={!semanticAvailable}
+                title={!semanticAvailable ? 'Semantic search is unavailable on the server' : undefined}
+                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  mode === 'semantic' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Sparkles className="h-3 w-3" />
+                Semantic
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Platform:</span>
+              {(['all', 'bioportal', 'proto-okn'] as Platform[]).map(p => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => handlePlatformChange(p)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200 ${
+                    platform === p ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {p === 'all' ? 'All' : p === 'bioportal' ? 'BioPortal' : 'Proto-OKN'}
+                </button>
+              ))}
+            </div>
           </div>
         </form>
 

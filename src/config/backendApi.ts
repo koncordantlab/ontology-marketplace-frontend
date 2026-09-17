@@ -390,10 +390,11 @@ export class BackendApiClient {
     query: string,
     mode: 'keyword' | 'semantic' = 'keyword',
     top = 20,
+    platform: 'all' | 'bioportal' | 'proto-okn' = 'all',
   ): Promise<RecommendResponse> {
     return this.request(BACKEND_API.RECOMMEND.SEARCH, {
       method: 'GET',
-      params: { q: query, mode, top: String(top) },
+      params: { q: query, mode, top: String(top), platform },
     });
   }
 
