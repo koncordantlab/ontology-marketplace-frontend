@@ -288,11 +288,11 @@ export const RecommendView: React.FC<RecommendViewProps> = ({ onNavigate }) => {
             <span className="mt-0.5 shrink-0">ⓘ</span>
             {preset === 'default' ? (
               <span>
-                <span className="font-medium text-gray-500">Default</span> — balanced ranking across all 9 quality dimensions (semantic coverage, FAIR metadata, governance, interoperability, and more).
+                <span className="font-medium text-gray-500">Default</span> — relevance-weighted (35%) balanced across all 9 quality dimensions. Best for most queries.
               </span>
             ) : (
               <span>
-                <span className="font-medium text-purple-600">Discovery</span> — weights relevance heavily (35%) to surface niche and knowledge-graph ontologies that closely match your query, even if less established.
+                <span className="font-medium text-purple-600">Discovery</span> — relevance boosted to 55%, other dimensions reduced. Surfaces niche and knowledge-graph ontologies that closely match your query, even if less established.
               </span>
             )}
           </div>
