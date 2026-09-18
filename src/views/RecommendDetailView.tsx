@@ -177,14 +177,26 @@ export const RecommendDetailView: React.FC<RecommendDetailViewProps> = ({ acrony
                   <Download className="h-3.5 w-3.5" /> {r.data_source === 'kg_csv' ? 'Download Entities CSV' : 'Download OWL File'}
                 </a>
               )}
-              <a
-                href={`https://bioportal.bioontology.org/ontologies/${r.acronym}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors duration-200"
-              >
-                <ArrowUpRight className="h-3.5 w-3.5" /> View on BioPortal
-              </a>
+              {r.data_source !== 'kg_csv' && (
+                <a
+                  href={`https://bioportal.bioontology.org/ontologies/${r.acronym}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 border border-gray-200 hover:bg-gray-200 transition-colors duration-200"
+                >
+                  <ArrowUpRight className="h-3.5 w-3.5" /> View on BioPortal
+                </a>
+              )}
+              {r.data_source === 'kg_csv' && (
+                <a
+                  href={`https://proto-okn.net`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors duration-200"
+                >
+                  <ArrowUpRight className="h-3.5 w-3.5" /> View on Proto-OKN
+                </a>
+              )}
             </div>
           </div>
         </div>
