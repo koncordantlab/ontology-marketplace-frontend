@@ -413,9 +413,9 @@ function App() {
             <span className="ml-2 text-sm text-gray-500">Loading...</span>
           </div>
         }>
-        {currentView === 'dashboard' && (
+        <div style={{ display: currentView === 'dashboard' ? 'block' : 'none' }}>
           <DashboardView onNavigate={handleViewChange} />
-        )}
+        </div>
         <div style={{ display: ['recommend', 'recommend-detail', 'recommend-similar'].includes(currentView) ? 'block' : 'none' }}>
           <div style={{ display: currentView === 'recommend' ? 'block' : 'none' }}>
             <RecommendView onNavigate={handleViewChange} />
